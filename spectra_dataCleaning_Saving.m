@@ -8,11 +8,15 @@ fpath = 'L:\Shared drives\MBARC_Reports\CADEMO\Ambient Soundscape\df100\';
 ftype = '*hourlyAves.mat';
 clean = 1; %Remove FIFO and tonnes (1)
 
-%specify which plots you want to generate
-Seasonal = 1; 
-Bands_hr = 1;
-Bands_day = 1;
-LGS = 1;
+%define color axis for LSG
+cxMIN = 40;
+cxMAX = 80;
+
+% Specify which plots you want to generate
+Seasonal  = true;   % seasonal spectra
+Bands_hr  = true;   % hourly band time series
+Bands_day = true;   % daily band time series
+LSG       = true;   % long-term spectrogram (LSG)
 %% Find data and initialize variables
 listing = dir([fpath, ftype]);
 fn = {listing.name};
@@ -321,112 +325,135 @@ save([fpath, region, '_' site '_Hourly_cleaned_v2.mat'],'masterDFhour')
 save([fpath, region, '_' site '_Daily_cleaned_v2.mat'],'masterDFday')
 writematrix(masterDFhour,[fpath, region, '_' site '_Hourly_cleaned.csv'])
 writematrix(masterDFday,[fpath,region '_' site '_Daily_cleaned.csv'])
+%% Calculate default plotting window
+startDate = min([datnum(:); dailydatnum(:)]);
+endDate   = max([datnum(:); dailydatnum(:)]);
 %% Seasonal median spectrum level plot
-figure(2)
-semilogx(freq, SPLwinter', 'Color', [0 0.4470 0.7410], 'LineWidth', 2)
-grid on
-hold on
-semilogx(freq, SPLspring', 'Color', [0.8500 0.3250 0.0980], 'LineWidth', 2)
-semilogx(freq, SPLsummer', 'Color', [0.9290 0.6940 0.1250], 'LineWidth', 2)
-semilogx(freq, SPLfall', 'Color', [0.4940 0.1840 0.5560], 'LineWidth', 2)
-legend('Winter (JFM)', 'Spring (AMJ)', 'Summer (JAS)', 'Fall (OND)')
-xlim([10 800])
-ax = gca;
-ax.XTick = [10 20 50 100 250 500];
-ylabel('dB re 1uPa^2')
-xlabel('Hz')
-title(['Seasonal Spectra ',region,' ',site])
+if Seasonal
+    figure(2)
+    semilogx(freq, SPLwinter', 'Color', [0 0.4470 0.7410], 'LineWidth', 2)
+    grid on
+    hold on
+    semilogx(freq, SPLspring', 'Color', [0.8500 0.3250 0.0980], 'LineWidth', 2)
+    semilogx(freq, SPLsummer', 'Color', [0.9290 0.6940 0.1250], 'LineWidth', 2)
+    semilogx(freq, SPLfall', 'Color', [0.4940 0.1840 0.5560], 'LineWidth', 2)
+    legend('Winter (JFM)', 'Spring (AMJ)', 'Summer (JAS)', 'Fall (OND)')
+    xlim([10 800])
+    ax = gca;
+    ax.XTick = [10 20 50 100 250 500];
+    ylabel('dB re 1uPa^2')
+    xlabel('Hz')
+    title(['Seasonal Spectra ',region,' ',site])
+    base = sprintf('%s_%s_SeasonalSpectra', region, site);
+    exportgraphics(gcf, fullfile(fpath, [base '.png']), 'Resolution', 300);
+    savefig(gcf, fullfile(fpath, [base '.fig']));
+end
 %% SPL Bands of interest over time plots
-%Hourly
-figure(500)
-subplot(4, 1, 1)
-plot(datnum, SPL20, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
-datetick
-xlim([startDate endDate])
-datetick('x','mm yyyy','keeplimits')
-ylabel('dB re 1uPa^2')
-xlim([startDate endDate])
-title('Fin Whale (18 - 22 Hz)')
-subplot(4, 1, 2)
-plot(datnum, SPL44, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
-datetick
-xlim([startDate endDate])
-datetick('x','mm yyyy','keeplimits')
-ylabel('dB re 1uPa^2')
-title('Blue Whale (42 - 46 Hz)')
-subplot(4, 1, 3)
-plot(datnum, SPL56, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
-datetick
-xlim([startDate endDate])
-datetick('x','mm yyyy','keeplimits')
-ylabel('dB re 1uPa^2')
-title('Ship Noise (56 - 71 Hz)')
-subplot(4, 1, 4)
-plot(datnum, SPL800, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
-datetick
-xlim([startDate endDate])
-datetick('x','mm yyyy','keeplimits')
-ylabel('dB re 1uPa^2')
-title('Wind Noise (708 - 891 Hz)')
+if Bands_hr
+    %Hourly
+    figure(500)
+    subplot(4, 1, 1)
+    plot(datnum, SPL20, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    xlim([startDate endDate])
+    title('Fin Whale (18 - 22 Hz)')
+    subplot(4, 1, 2)
+    plot(datnum, SPL44, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Blue Whale (42 - 46 Hz)')
+    subplot(4, 1, 3)
+    plot(datnum, SPL56, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Ship Noise (56 - 71 Hz)')
+    subplot(4, 1, 4)
+    plot(datnum, SPL800, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Wind Noise (708 - 891 Hz)')
+    base = sprintf('%s_%s_Bands_Hourly', region, site);
+    exportgraphics(gcf, fullfile(fpath, [base '.png']), 'Resolution', 300);
+    savefig(gcf, fullfile(fpath, [base '.fig']));
+end
 
-%Daily
-figure(501)
-subplot(4, 1, 1)
-plot(dailydatnum, SPL20daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
-datetick
-xlim([startDate endDate])
-datetick('x','mm yyyy','keeplimits')
-ylabel('dB re 1uPa^2')
-title('Fin Whale (18 - 22 Hz)')
-subplot(4, 1, 2)
-plot(dailydatnum, SPL44daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
-datetick
-xlim([startDate endDate])
-datetick('x','mm yyyy','keeplimits')
-ylabel('dB re 1uPa^2')
-title('Blue Whale (42 - 46 Hz)')
-subplot(4, 1, 3)
-plot(dailydatnum, SPL56daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
-datetick
-xlim([startDate endDate])
-datetick('x','mm yyyy','keeplimits')
-ylabel('dB re 1uPa^2')
-title('Ship Noise (56 - 71 Hz)')
-subplot(4, 1, 4)
-plot(dailydatnum, SPL800daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
-datetick
-xlim([startDate endDate])
-datetick('x','mm yyyy','keeplimits')
-ylabel('dB re 1uPa^2')
-title('Wind Noise (708 - 891 Hz)')
+if Bands_day
+    %Daily
+    figure(501)
+    subplot(4, 1, 1)
+    plot(dailydatnum, SPL20daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Fin Whale (18 - 22 Hz)')
+    subplot(4, 1, 2)
+    plot(dailydatnum, SPL44daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Blue Whale (42 - 46 Hz)')
+    subplot(4, 1, 3)
+    plot(dailydatnum, SPL56daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Ship Noise (56 - 71 Hz)')
+    subplot(4, 1, 4)
+    plot(dailydatnum, SPL800daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Wind Noise (708 - 891 Hz)')
+    base = sprintf('%s_%s_Bands_Daily', region, site);
+    exportgraphics(gcf, fullfile(fpath, [base '.png']), 'Resolution', 300);
+    savefig(gcf, fullfile(fpath, [base '.fig']));
+end
 %% LSG
-figure
-surf(dailydatnum,freq,dailySPL2, 'Linestyle','none');
-view([0 90])
-set(gca,'yscale','log')
-xlim([startDate endDate])
-ylim([15 2000/2])
-% make ticks out
-set(gca,'TickDir','out')
-lsg.T = dailydatnum;
-% month ticks
-d=datevec(dailydatnum);
-[~,idxm]=unique(d(:,1:2),'rows');
-ax = get(gca);
-ax.XAxis.MinorTick = 'on';
-ax.XAxis.MinorTickValues =dailydatnum(idxm);
-% year ticks
-[~,idxy]=unique(d(:,1),'rows');
-set(gca,'xtick',lsg.T(idxy))
-% display year
-datetick('x','mmm yyyy','keeplimits')
-% Color
-colormap jet
-% limits
-caxis([40 80])
-% colorbar
-cb=colorbar;
-ylabel(cb,'Spectrum Level (dB re 1\muPa^2/Hz)')
-ylabel('Frequency (Hz)')
-set(groot,'DefaultFigureGraphicsSmoothing','on')
-title([region,' ', site, ' LSG'])
+if LSG
+    figure
+    surf(dailydatnum,freq,dailySPL2, 'Linestyle','none');
+    view([0 90])
+    set(gca,'yscale','log')
+    xlim([startDate endDate])
+    ylim([15 2000/2])
+    % make ticks out
+    set(gca,'TickDir','out')
+    lsg.T = dailydatnum;
+    % month ticks
+    d=datevec(dailydatnum);
+    [~,idxm]=unique(d(:,1:2),'rows');
+    ax = get(gca);
+    ax.XAxis.MinorTick = 'on';
+    ax.XAxis.MinorTickValues =dailydatnum(idxm);
+    % year ticks
+    [~,idxy]=unique(d(:,1),'rows');
+    set(gca,'xtick',lsg.T(idxy))
+    % display year
+    datetick('x','mmm yyyy','keeplimits')
+    % Color
+    colormap jet
+    % limits
+    caxis([cxMIN cxMAX])
+    % colorbar
+    cb=colorbar;
+    ylabel(cb,'Spectrum Level (dB re 1\muPa^2/Hz)')
+    ylabel('Frequency (Hz)')
+    set(groot,'DefaultFigureGraphicsSmoothing','on')
+    title([region,' ', site, ' LSG'])
+    base = sprintf('%s_%s_LSG', region, site);
+    exportgraphics(gcf, fullfile(fpath, [base '.png']), 'Resolution', 300);
+    savefig(gcf, fullfile(fpath, [base '.fig']));
+end

@@ -1,0 +1,457 @@
+close all;clear all;clc;
+% Tested in Matlab 2023a
+
+%% User defined parameters
+region = 'CHNMS';
+site = 'NO';
+fpath = 'L:\Shared drives\MBARC_Reports\CADEMO\Ambient Soundscape\df100\';
+ftype = '*hourlyAves.mat';
+clean = 1; %Remove FIFO and tonnes (1)
+
+%define color axis for LSG
+cxMIN = 40;
+cxMAX = 80;
+
+% Specify which plots you want to generate
+Seasonal  = true;   % seasonal spectra
+Bands_hr  = true;   % hourly band time series
+Bands_day = true;   % daily band time series
+LSG       = true;   % long-term spectrogram (LSG)
+%% Find data and initialize variables
+listing = dir([fpath, ftype]);
+fn = {listing.name};
+fn = char(fn);
+filename = {};
+
+freq = 0:1:1000;
+SPL = [];
+datnum = [];
+poff = datenum([2000 0 0 0 0 0]);
+FIFOrmv = [];
+%% Load files and remove FIFO
+for fname = 1:size(fn, 1)
+    filename{fname} = [fpath fn(fname, :)];
+    lsg = load(filename{fname});
+
+    if clean ==1
+        % ---------- Generic FIFO cleaning (applies to ALL regions) ----------
+        if length(lsg.freq) > 1001
+            % 320 kHz generic FIFO detection/removal
+            if mean(lsg.mpwrtf(81, :)) - mean(lsg.mpwrtf(78, :)) > 1.4 || ...
+                mean(lsg.mpwrtf(161, :)) - mean(lsg.mpwrtf(158, :)) > 1.4
+                integers = [80*(1:12)]; % 320 kHz
+                for i = 1:length(integers)
+
+                    lsg.mpwrtf([integers(i)-2:integers(i)+2], :) = NaN;
+                end
+                lsg.mpwrtf = lsg.mpwrtf(1:1001, :);
+                lsg.mpwrtf = fillmissing(lsg.mpwrtf, 'spline', 1);
+            end
+            % ---------- SOCAL-specific extras for 320 kHz ----------
+            if strcmpi(region,'SOCAL')
+            if strcmp(site, 'C')
+                if mean(lsg.mpwrtf(361, :)) - mean(lsg.mpwrtf(365, :)) > 1.4 || mean(lsg.mpwrtf(181, :)) - mean(lsg.mpwrtf(185, :)) > 1.4
+                    integers = 30*(1:33) ;% 320 kHz
+                    for i = 2:length(integers)
+                        lsg.mpwrtf(integers(i)-3:integers(i)+3, :) = NaN;
+                    end
+                    lsg.mpwrtf = lsg.mpwrtf(1:1001, :);
+                    lsg.mpwrtf = fillmissing(lsg.mpwrtf, 'spline', 1);
+                end
+            end
+            end
+            
+            if strcmpi(region,'CHNMS')
+                k_extra = [160,236,240,400,472,480,560,708,720,800];
+                k_test = k_extra(k_extra-2 >= 1 & k_extra+1 <= size(lsg.mpwrtf,1));
+                has_fifo = any(arrayfun(@(c) ...
+                    mean(lsg.mpwrtf(c+1,:)) - mean(lsg.mpwrtf(c-2,:)) > 1.4, k_test));
+
+                if has_fifo
+                    % Remove ±2 bins around each listed center
+                    k_mask = k_extra(k_extra-2 >= 1 & k_extra+2 <= size(lsg.mpwrtf,1));
+                    for ii = 1:numel(k_mask)
+                        lsg.mpwrtf(k_mask(ii)-2 : k_mask(ii)+2, :) = NaN;
+                    end
+                    % Fill along frequency dimension (same as your pattern)
+                    lsg.mpwrtf = fillmissing(lsg.mpwrtf, 'spline', 1);
+                end
+            end
+
+        elseif length(lsg.freq) == 1001
+            % 200 kHz generic FIFO detection/removal
+            if mean(lsg.mpwrtf(101, :)) - mean(lsg.mpwrtf(99, :)) > 1.4 || mean(lsg.mpwrtf(151, :)) - mean(lsg.mpwrtf(148, :)) > 1.4
+                integers = 50*(1:20) ;% 320 kHz
+                for i = 1:length(integers)
+                    lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                end
+                lsg.mpwrtf = lsg.mpwrtf(1:1001, :);
+                lsg.mpwrtf = fillmissing(lsg.mpwrtf, 'spline', 1);
+            end
+            
+            % ---------- SOCAL-specific extras for 200 kHz ----------
+            if strcmpi(region,'SOCAL')
+                if any(strcmp(site, {'C','N','B'}))
+                if mean(lsg.mpwrtf(376, :)) - mean(lsg.mpwrtf(370, :)) > 1.4 || mean(lsg.mpwrtf(876, :)) - mean(lsg.mpwrtf(886, :)) > 1.4
+                    integers = 25*(1:40) ;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                    lsg.mpwrtf = lsg.mpwrtf(1:1001, :);
+                    lsg.mpwrtf = fillmissing(lsg.mpwrtf, 'spline', 1);
+                end
+
+                if mean(lsg.mpwrtf(361, :)) - mean(lsg.mpwrtf(365, :)) > 1.4 || mean(lsg.mpwrtf(181, :)) - mean(lsg.mpwrtf(185, :)) > 1.4
+                    integers = 30*(1:33) ;% 320 kHz
+                    for i = 2:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                    lsg.mpwrtf = lsg.mpwrtf(1:1001, :);
+                    lsg.mpwrtf = fillmissing(lsg.mpwrtf, 'spline', 1);
+                end
+                end
+            
+            if strcmp(site, 'B')
+                if mean(lsg.mpwrtf(21, :)) - mean(lsg.mpwrtf(24, :)) > 1.4
+                    integers = 20*(1:50) ;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                end
+                if mean(lsg.mpwrtf(31, :)) - mean(lsg.mpwrtf(35, :)) > 1.4
+                    integers = 30*(1:50) ;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                end
+                if mean(lsg.mpwrtf(48, :)) - mean(lsg.mpwrtf(44, :)) > 1.4
+                    integers = 48*(1:20) ;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                end
+                if mean(lsg.mpwrtf(16, :)) - mean(lsg.mpwrtf(11, :)) > 1.4
+                    integers = 16*(1:66) ;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                end
+                if mean(lsg.mpwrtf(46, :)) - mean(lsg.mpwrtf(2, :)) > 1.4
+                    integers = 46 ;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                end
+                if mean(lsg.mpwrtf(76, :)) - mean(lsg.mpwrtf(72, :)) > 1.4
+                    integers = 76;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                end
+                if mean(lsg.mpwrtf(106, :)) - mean(lsg.mpwrtf(102, :)) > 1.4
+                    integers = 106;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                end
+                if mean(lsg.mpwrtf(196, :)) - mean(lsg.mpwrtf(192, :)) > 1.4
+                    integers = 196;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                end
+                 if mean(lsg.mpwrtf(136, :)) - mean(lsg.mpwrtf(132, :)) > 1.4
+                    integers = 136;% 320 kHz
+                    for i = 1:length(integers)
+                        lsg.mpwrtf(integers(i)-2:integers(i)+2, :) = NaN;
+                    end
+                 end
+
+                if strcmp(lsg.dBaseName, 'CINMS_B_45')
+                    lsg.mpwrtf = lsg.mpwrtf + 13;
+                end
+                lsg.mpwrtf = lsg.mpwrtf(1:1001, :);
+                lsg.mpwrtf = fillmissing(lsg.mpwrtf, 'spline', 1);
+            end
+            end %SOCAL specific
+        end %generic 
+    end %clean FIFO
+
+    % Append to master matrices
+    SPL = [SPL lsg.mpwrtf(1:1001, :)];
+    datnum = [datnum; lsg.ptime+poff];
+end
+
+idxDat = find(datnum > datenum(2006, 01, 01) & datnum < (datenum(2024, 01, 01)));
+datnum = datnum(idxDat);
+SPL = SPL(:, idxDat);
+%% Sort and fill missing days / hours with NaNs
+[~,fOrder] = sort(datnum);
+datnum = datnum(fOrder);
+SPL = SPL(:, fOrder);
+
+datnum = datenum(dateshift(datetime(datestr(datnum)), 'start', 'hour'));
+%% Bad-day/tones cleaning (SOCAL specific)
+if clean == 1 
+    if strcmpi(region,'CHNMS')
+        
+    end
+    if strcmpi(region,'SOCAL')
+    % getting rid of days we've manually ididentified as bad
+    if strcmp(site, 'SN')
+        badDaysdat = find(datnum > 734050 & datnum < 734054 | datnum > 734222 & datnum < 734244);
+        SPL(:, badDaysdat) = 0;
+        goodBinIdxSPL = SPL(end, :) > 80 | SPL(end, :) <20 | SPL(50, :) > 105 | SPL(201, :)> 79| SPL(207, :) < 40;
+        SPL(:, goodBinIdxSPL ) = 0;
+
+    elseif strcmp(site, 'C')
+        badDaysdat = find(datnum > 733516 & datnum < 733613 | datnum > 733613 & datnum < 733670 | datnum > 734019 & datnum < 734074 | ...
+            datnum > 736242 & datnum < 736316 | datnum > 738092 & datnum < 738205 | datnum > 738678 & datnum <  738783 | datnum > 733670 & datnum < 733689 | ...
+            datnum > 739022 & datnum <739103 | datnum > 734370 & datnum <  734458 | datnum > 734370 & datnum <  734458 | datnum > 734556 & datnum <  734562);
+        SPL(:, badDaysdat) = 0;
+
+        goodBinIdxSPL =  find(SPL(901, :) > 78 | ...
+            SPL(end, :) < 20 | ...
+            SPL(55, :) < 62 | ...
+            SPL(300, :) > 105 | ...
+            SPL(21, :) > 112 | ...
+            SPL(21, :) < 67 | ...
+            SPL(101, :) > 96 | ...
+            SPL(501, :) > 85 | ...
+            SPL(501, :) < 44 | ...
+            SPL(901, :) < 38 | ...
+            SPL(151, :) > 92 | ...
+            SPL(71, :) > 99 | ...
+            SPL(91, :) > 96 | ...
+            SPL(90, :) > 94 | ...
+            SPL(206, :) > 81 | ...
+            SPL(135, :) > 88 | ...
+            SPL(997, :) > 76 | ...
+            SPL(998, :) > 76 | ...
+            SPL(412, :) > 86); %| ...
+        SPL(:, goodBinIdxSPL ) = 0;
+        
+    elseif strcmp(site, 'N')
+        badDays = find(datnum > 736014 & datnum < 736116 | datnum > 736289 & datnum < 736438 | datnum > 737506 & datnum < 737513);
+        SPL(:, badDays) = 0;
+        tonesBinIdx = find(SPL(901, :) > 80 | SPL(901, :) < 30 | SPL(61, :) < 55 | SPL(61, :) > 99 | SPL(23, :) >100);
+        SPL(:, tonesBinIdx) = 0;
+    elseif strcmp(site, 'B')
+       badDays = find(datnum > 733452 & datnum < 733507 | datnum > 734314 & datnum < 734400 | datnum > 736242 & datnum < 736256 | ...
+        datnum > 736643 & datnum < 736713 | datnum > 737391 & datnum < 737530 | datnum > 733984 & datnum < 734017 | datnum <732000 |...
+        datnum > 736127 & datnum < 736145 | datnum > 737112 & datnum < 737209 | datnum > 737239 & datnum < 737252);
+        SPL(:, badDays) = 0;
+        tonesBinIdx = find(SPL(901, :) > 77 | SPL(901, :) < 40 | SPL(901, :) < 30  | ...
+            SPL(21, :) > 116 | SPL(61, :) > 99 | SPL(23, :) > 122 | SPL(890, :) < 40 | ...
+            SPL(501, :) < 40| SPL(701, :) > 84| SPL(701, :) > 79 |SPL(18, :) < 49); 
+        SPL(:, tonesBinIdx) = 0;
+        
+elseif strcmp(site, 'E')
+        tonesBinIdx = find(SPL(901, :) > 73.5 | SPL(901, :) < 33.5 | SPL(409, :) > 90 | ...
+            SPL(18, :) > 120 | SPL(426, :) > 86 | SPL(101, :) > 94 | SPL(101, :) < 48)%| ...
+        SPL(:, tonesBinIdx) = 0;
+
+elseif strcmp(site, 'H')
+    badDays = find(datnum > 734953 & datnum < 735071 | datnum > 735355 & datnum < 735484 | datnum > 736240 & datnum < 736289 | ...
+       datnum > 737002 & datnum < 737095 | datnum > 737095 & datnum < 737250) % | datnum > 733984 & datnum < 734017 | datnum <732000 | datnum > datenum(2024, 01, 01));
+        SPL(:, badDays) = 0;
+        tonesBinIdx = find(SPL(901, :) > 77 | SPL(901, :) < 40 | SPL(21, :) > 107  | ...
+            SPL(101, :) > 93 | SPL(501, :) > 79 | SPL(801, :) > 78  | SPL(41, :) > 103 | ...
+            SPL(23, :) > 104 | SPL(63, :) > 97)%| SPL(701, :) > 79); 
+        SPL(:, tonesBinIdx) = 0;
+    end
+    end
+end
+
+SPL(SPL== 0) = NaN; % Replace zeros inserted by masks with NaN
+
+% Calculate daily levels from cleaned hours
+dailySPL = timetable(datetime(datestr(datnum)), SPL');
+TT2 = retime(dailySPL,'daily','median');
+dailySPL2 = TT2.Var1;
+dailydatnum = datenum(TT2.Time);
+dailySPL2 = dailySPL2';
+
+% Optional deployment-specific removals (SOCAL-only)
+if strcmpi(region,'SOCAL')
+if strcmp(site, 'C')
+    dailySPL2(:, [220, 569, 862, 630, 52, 749, 2955, 3657, 5026, 5025, 568, 65, 863, 1106]) = [];
+    dailydatnum([220, 569, 862, 630, 52, 749, 2955, 3657, 5026, 5025, 568, 65, 863, 1106]) = [];
+elseif strcmp(site, 'B')
+    dailySPL2(:, [487, 198, 1754, 1077, 1193, 2863, 4874, 5194, 4099, 5429, 3192, 796]) = [];
+    dailydatnum([487, 198, 1754, 1077, 1193, 2863, 4874, 5194, 4099, 5429, 3192, 796]) = [];
+end
+end
+%% Calculate bands of interest (indices are 0-based Hz in 'freq', so +1 for rows)
+f63  = 56:71;    % ship noise
+f20  = 18:25;    % fin whale
+f44  = 40:48;    % blue whale
+f800 = 708:891;  % wind
+
+SPL20  = 10*log10(sum(10.^(SPL(f20+1, :)/10)))  - 10*log10(length(f20));
+SPL56  = 10*log10(sum(10.^(SPL(f63+1, :)/10)))  - 10*log10(length(f63));
+SPL44  = 10*log10(sum(10.^(SPL(f44+1, :)/10)))  - 10*log10(length(f44));
+SPL800 = 10*log10(sum(10.^(SPL(f800+1, :)/10))) - 10*log10(length(f800));
+
+SPL20daily  = 10*log10(sum(10.^(dailySPL2(f20+1,  :)/10))) - 10*log10(length(f20));
+SPL56daily  = 10*log10(sum(10.^(dailySPL2(f63+1,  :)/10))) - 10*log10(length(f63));
+SPL44daily  = 10*log10(sum(10.^(dailySPL2(f44+1,  :)/10))) - 10*log10(length(f44));
+SPL800daily = 10*log10(sum(10.^(dailySPL2(f800+1, :)/10))) - 10*log10(length(f800));
+%% Compute seasons
+[YY,MM,DD, HH]=datevec(datnum);
+[YYd,MMd,DDd]=datevec(dailydatnum);
+
+wintIdx = find(MMd > 0 & MMd < 4);
+springIdx = find(MMd > 3 & MMd < 7);
+summIdx = find(MMd > 6 & MMd < 10);
+fallIdx = find(MMd > 9 & MMd < 13);
+
+SPLwinter = nanmedian(dailySPL2(:, wintIdx), 2);
+SPLspring = nanmedian(dailySPL2(:, springIdx), 2);
+SPLsummer = nanmedian(dailySPL2(:, summIdx), 2);
+SPLfall = nanmedian(dailySPL2(:, fallIdx), 2);
+%% Build final tables
+masterDFhour = [datnum YY MM DD HH SPL20' SPL44' SPL56' SPL800' ];
+masterDFday = [dailydatnum YYd MMd DDd SPL20daily' SPL44daily' SPL56daily' SPL800daily' dailySPL2'];
+
+% Basic value filters (preserve NaNs)
+goodHour = find(masterDFhour(:, 6) < 103 & masterDFhour(:, 6) > 50 | isnan(masterDFhour(:, 6)));
+goodDay = find(masterDFday(:, 5) < 82 | isnan(masterDFday(:, 5)));
+
+masterDFday = masterDFday(goodDay, :);
+masterDFhour = masterDFhour(goodHour, :);
+%% Save outputs
+save([fpath, region, '_' site '_Hourly_cleaned_v2.mat'],'masterDFhour')
+save([fpath, region, '_' site '_Daily_cleaned_v2.mat'],'masterDFday')
+writematrix(masterDFhour,[fpath, region, '_' site '_Hourly_cleaned.csv'])
+writematrix(masterDFday,[fpath,region '_' site '_Daily_cleaned.csv'])
+%% Calculate default plotting window
+startDate = min([datnum(:); dailydatnum(:)]);
+endDate   = max([datnum(:); dailydatnum(:)]);
+%% Seasonal median spectrum level plot
+if Seasonal
+    figure(2)
+    semilogx(freq, SPLwinter', 'Color', [0 0.4470 0.7410], 'LineWidth', 2)
+    grid on
+    hold on
+    semilogx(freq, SPLspring', 'Color', [0.8500 0.3250 0.0980], 'LineWidth', 2)
+    semilogx(freq, SPLsummer', 'Color', [0.9290 0.6940 0.1250], 'LineWidth', 2)
+    semilogx(freq, SPLfall', 'Color', [0.4940 0.1840 0.5560], 'LineWidth', 2)
+    legend('Winter (JFM)', 'Spring (AMJ)', 'Summer (JAS)', 'Fall (OND)')
+    xlim([10 800])
+    ax = gca;
+    ax.XTick = [10 20 50 100 250 500];
+    ylabel('dB re 1uPa^2')
+    xlabel('Hz')
+    title(['Seasonal Spectra ',region,' ',site])
+    base = sprintf('%s_%s_SeasonalSpectra', region, site);
+    savePlot(gcf, fpath, base, plot_formats);
+exportgraphics(gcf, fullfile(fpath, [base '.png']), 'Resolution', 300);
+savefig(gcf, fullfile(fpath, [base '.fig']));
+end
+%% SPL Bands of interest over time plots
+if Bands_hr
+    %Hourly
+    figure(500)
+    subplot(4, 1, 1)
+    plot(datnum, SPL20, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    xlim([startDate endDate])
+    title('Fin Whale (18 - 22 Hz)')
+    subplot(4, 1, 2)
+    plot(datnum, SPL44, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Blue Whale (42 - 46 Hz)')
+    subplot(4, 1, 3)
+    plot(datnum, SPL56, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Ship Noise (56 - 71 Hz)')
+    subplot(4, 1, 4)
+    plot(datnum, SPL800, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Wind Noise (708 - 891 Hz)')
+    base = sprintf('%s_%s_Bands_Hourly', region, site);
+    savePlot(gcf, fpath, base, plot_formats);
+end
+
+if Bands_day
+    %Daily
+    figure(501)
+    subplot(4, 1, 1)
+    plot(dailydatnum, SPL20daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Fin Whale (18 - 22 Hz)')
+    subplot(4, 1, 2)
+    plot(dailydatnum, SPL44daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Blue Whale (42 - 46 Hz)')
+    subplot(4, 1, 3)
+    plot(dailydatnum, SPL56daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Ship Noise (56 - 71 Hz)')
+    subplot(4, 1, 4)
+    plot(dailydatnum, SPL800daily, 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
+    datetick
+    xlim([startDate endDate])
+    datetick('x','mm yyyy','keeplimits')
+    ylabel('dB re 1uPa^2')
+    title('Wind Noise (708 - 891 Hz)')
+    base = sprintf('%s_%s_Bands_Daily', region, site);
+    savePlot(gcf, fpath, base, plot_formats);
+end
+%% LSG
+if LSG
+    figure
+    surf(dailydatnum,freq,dailySPL2, 'Linestyle','none');
+    view([0 90])
+    set(gca,'yscale','log')
+    xlim([startDate endDate])
+    ylim([15 2000/2])
+    % make ticks out
+    set(gca,'TickDir','out')
+    lsg.T = dailydatnum;
+    % month ticks
+    d=datevec(dailydatnum);
+    [~,idxm]=unique(d(:,1:2),'rows');
+    ax = get(gca);
+    ax.XAxis.MinorTick = 'on';
+    ax.XAxis.MinorTickValues =dailydatnum(idxm);
+    % year ticks
+    [~,idxy]=unique(d(:,1),'rows');
+    set(gca,'xtick',lsg.T(idxy))
+    % display year
+    datetick('x','mmm yyyy','keeplimits')
+    % Color
+    colormap jet
+    % limits
+    caxis([cxMIN cxMAX])
+    % colorbar
+    cb=colorbar;
+    ylabel(cb,'Spectrum Level (dB re 1\muPa^2/Hz)')
+    ylabel('Frequency (Hz)')
+    set(groot,'DefaultFigureGraphicsSmoothing','on')
+    title([region,' ', site, ' LSG'])
+    base = sprintf('%s_%s_LSG', region, site);
+    savePlot(gcf, fpath, base, plot_formats);
+end
