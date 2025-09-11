@@ -29,3 +29,10 @@ for iDir = 3:nDirs
         end
     end
 end
+
+%% PLOT LSG
+plotDailyLSG('L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100',...
+    'CHNMS','CHNMS',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF')
+
+plotDailyLSG_clean('L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100',...
+    'CHNMS','CHNMS',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF')
