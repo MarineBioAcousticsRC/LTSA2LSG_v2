@@ -2,11 +2,11 @@
 clear all; close all;
 
 % autoRun_LTSA_daily_spectra
-thisDisk = 'W:\GofMX\RW3\df100'; %can't be a subfolder, needs to be the main folder with all deployments
+thisDisk = 'W:\GofMX\RW5\df100'; %can't be a subfolder, needs to be the main folder with all deployments
 NumAves = 5;     % number of time slices (spectral averages) to read per raw file
 timeResol = 2;   % time bin resolution 0 = month, 1 = days, 2 = hours
 harpDataSummaryCSV = 'C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20250917.csv';
-outDisk = 'F:\GOM_LSG_2025\RW3';
+outDisk = 'F:\GOM_LSG_2025\RW5';
 TFsFolder = 'L:\Shared drives\MBARC_TF';
 mkdir(outDisk)
 dirList = dir(thisDisk);

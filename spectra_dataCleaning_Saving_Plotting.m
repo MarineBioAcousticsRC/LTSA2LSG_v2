@@ -1,7 +1,7 @@
 close all;clear all;clc;
 % Tested in Matlab 2023a
 
-%% User defined parameters
+%% user defined parameters
 region = 'CHNMS';
 site = 'NO';
 fpath = 'L:\Shared drives\MBARC_Reports\CADEMO\Ambient Soundscape\df100\';
@@ -421,6 +421,7 @@ if Bands_day
     exportgraphics(gcf, fullfile(fpath, [base '.png']), 'Resolution', 300);
     savefig(gcf, fullfile(fpath, [base '.fig']));
 end
+
 %% LSG
 if LSG
     figure
