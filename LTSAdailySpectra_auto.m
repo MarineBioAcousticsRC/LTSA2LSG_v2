@@ -179,7 +179,7 @@ elseif tres == 1
     tString = 'daily';
 elseif tres == 2
     mnum = floor(datenum(dvec) * 24);   % hour
-    tString = 'hourly';
+    tString = 'Hourly';
 elseif tres == 3
     mnum = floor(datenum(dvec) * 24*60);   % hour
     tString = 'minutely';
@@ -335,9 +335,9 @@ end
 
 % save results
 if 1
-    outFile = fullfile(outDir,[dBaseName,'_',tString,'Aves.mat']);
-    save(outFile,'ptime','mpwr','mpwrtf','freq','nmave','tf_file','dBaseName','tf','tf_file',...
-    'tf_pathname','Ptf')
+    outFile = fullfile(outDir,[dBaseName,'_df100_',tString,'Aves.mat']);
+    save(outFile,'ptime','mpwrtf','freq','nmave', 'tf_file','dBaseName',...
+    'Ptf')
 end
 
 t = toc;

@@ -2,11 +2,11 @@
 clear all; close all;
 
 % autoRun_LTSA_daily_spectra
-thisDisk = 'S:\CHNMS\NO\df100'; %can't be a subfolder, needs to be the main folder with all deployments
+thisDisk = 'W:\GofMX\RW3\df100'; %can't be a subfolder, needs to be the main folder with all deployments
 NumAves = 5;     % number of time slices (spectral averages) to read per raw file
 timeResol = 2;   % time bin resolution 0 = month, 1 = days, 2 = hours
-harpDataSummaryCSV = 'L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\HARPDataSummary_20240618.csv';
-outDisk = 'L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100\hourly';
+harpDataSummaryCSV = 'C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20250917.csv';
+outDisk = 'F:\GOM_LSG_2025\RW3';
 TFsFolder = 'L:\Shared drives\MBARC_TF';
 mkdir(outDisk)
 dirList = dir(thisDisk);
@@ -31,8 +31,8 @@ for iDir = 3:nDirs
 end
 
 %% PLOT LSG
-plotDailyLSG('L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100',...
-    'CHNMS','CHNMS',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF')
-
-plotDailyLSG_clean('L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100',...
-    'CHNMS','CHNMS',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF')
+% plotDailyLSG('L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100',...
+%     'CHNMS','CHNMS',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF')
+% 
+% plotDailyLSG_clean('L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100',...
+%     'CHNMS','CHNMS',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF')

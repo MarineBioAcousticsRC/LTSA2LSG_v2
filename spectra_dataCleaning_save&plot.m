@@ -5,7 +5,7 @@ close all;clear all;clc;
 region = 'CHNMS';
 site = 'NO';
 fpath = 'L:\Shared drives\MBARC_Reports\CADEMO\Ambient Soundscape\df100\';
-ftype = '*hourlyAves.mat';
+ftype = '*HourlyAves.mat';
 clean = 1; %Remove FIFO and tonnes (1)
 
 %define color axis for LSG
