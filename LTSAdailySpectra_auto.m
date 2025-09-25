@@ -28,7 +28,9 @@ rm_fifo = 0;%not used    % remove FIFO via interpolation on spectra. 0=no, 1=yes
 fsflag = 1;%not used     % sample rate flag for FIFO removal 1=80kHz, 0=all other
 
 % get LTSA file names and tf file name
-LTSAlist(1:2) = [];
+if strcmp(LTSAlist(1).name,'.')
+    LTSAlist(1:2) = [];
+end
 fn_files = char({(LTSAlist.name)}');
 fn_pathname = vertcat(LTSAlist.folder);
 
