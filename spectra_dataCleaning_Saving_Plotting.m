@@ -2,20 +2,20 @@ close all;clear all;clc;
 % Tested in Matlab 2023a
 
 %% user defined parameters
-region = 'CHNMS';
-site = 'NO';
-fpath = 'L:\Shared drives\MBARC_Reports\CADEMO\Ambient Soundscape\df100\';
+region = 'GOM';
+site = 'TUX';
+fpath = 'F:\GOM_LSG_2025\TUX\';
 ftype = '*HourlyAves.mat';
-clean = 1; %Remove FIFO and tonnes (1)
+clean = 0; %Remove FIFO and tonnes (1)
 
 %define color axis for LSG
 cxMIN = 40;
-cxMAX = 80;
+cxMAX = 110;
 
 % Specify which plots you want to generate
-Seasonal  = true;   % seasonal spectra
-Bands_hr  = true;   % hourly band time series
-Bands_day = true;   % daily band time series
+Seasonal  = false;   % seasonal spectra
+Bands_hr  = false;   % hourly band time series
+Bands_day = false;   % daily band time series
 LSG       = true;   % long-term spectrogram (LSG)
 %% Find data and initialize variables
 listing = dir([fpath, ftype]);
@@ -182,9 +182,9 @@ for fname = 1:size(fn, 1)
     datnum = [datnum; lsg.ptime+poff];
 end
 
-idxDat = find(datnum > datenum(2006, 01, 01) & datnum < (datenum(2024, 01, 01)));
-datnum = datnum(idxDat);
-SPL = SPL(:, idxDat);
+% idxDat = find(datnum > datenum(2006, 01, 01) & datnum < (datenum(2024, 01, 01)));
+% datnum = datnum(idxDat);
+% SPL = SPL(:, idxDat);
 %% Sort and fill missing days / hours with NaNs
 [~,fOrder] = sort(datnum);
 datnum = datnum(fOrder);
@@ -454,6 +454,7 @@ if LSG
     ylabel('Frequency (Hz)')
     set(groot,'DefaultFigureGraphicsSmoothing','on')
     title([region,' ', site, ' LSG'])
+    set(gcf,'Position',[688   481   965   163])
     base = sprintf('%s_%s_LSG', region, site);
     exportgraphics(gcf, fullfile(fpath, [base '.png']), 'Resolution', 300);
     savefig(gcf, fullfile(fpath, [base '.fig']));
