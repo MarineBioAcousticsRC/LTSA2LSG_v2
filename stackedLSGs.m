@@ -115,19 +115,39 @@ function makeStackedFigure(idxList, sites, sitePaths, ...
     ftype, clean)
 
     nSites = numel(idxList);
-    tl = tiledlayout(nSites,1, ...
-    'TileSpacing','none', ...
-    'Padding','none');
-    set(gcf,'Color','w','Position',[160 60 1120 920]);
+
+    % ---- figure & layout parameters (normalized units) ----
+    figure('Color','w','Position',[710 73 822 920]);
+
+    left   = 0.11;   % a bit more room for y-tick labels
+    bottom = 0.08;
+    top    = 0.03;
+
+    cbWidth = 0.02;  % width of shared colorbar
+    cbGap   = 0.015;  % gap between right edge of panels and colorbar
+    right   = 0.08;  % small margin to the right of colorbar
+
+    gap    = 0.013;  % vertical gap between panels (tune this)
+    % total width available for the stack of axes
+    width  = 1 - left - right - cbGap - cbWidth;
+    % height of each axis
+    height = (1 - top - bottom - (nSites-1)*gap) / nSites;
 
     nDays   = numel(allDays);
     wantTicks = [10 100 1000];
     wantTicks = wantTicks(wantTicks>=min(F) & wantTicks<=max(F));
 
+    ax = gobjects(nSites,1);
+
     for ii = 1:nSites
         i     = idxList(ii);
         site  = sites{i};
         fpath = sitePaths{i};
+
+        % Position for this axis (top → bottom)
+        bottom_i = 1 - top - ii*height - (ii-1)*gap;
+        ax(ii) = axes('Position',[left bottom_i width height]); %#ok<LAXES>
+        set(ax(ii),'Color',[0.85 0.85 0.85]); hold(ax(ii),'on');
 
         % ---- load all HourlyAves for this site ----
         L = dir(fullfile(fpath, ftype));
@@ -136,7 +156,6 @@ function makeStackedFigure(idxList, sites, sitePaths, ...
         for j = 1:numel(L)
             S = load(fullfile(L(j).folder, L(j).name));
 
-            % OPTIONAL: minimal generic FIFO cleaning (keep your detailed blocks if needed)
             if clean==1
                 if numel(S.freq) > 1001
                     if mean(S.mpwrtf(81,:))-mean(S.mpwrtf(78,:))>1.4 || ...
@@ -166,9 +185,6 @@ function makeStackedFigure(idxList, sites, sitePaths, ...
         end
 
         % ---- hourly -> daily median ----
-        ax = nexttile(tl);
-        set(ax,'Color',[0.85 0.85 0.85]); hold(ax,'on');
-
         if ~isempty(SPL)
             [~,ord] = sort(datnm);
             datnm = datnm(ord);  SPL = SPL(:,ord);
@@ -186,43 +202,167 @@ function makeStackedFigure(idxList, sites, sitePaths, ...
             Zfull(:, loc(tf)) = Z(:, tf);
 
             if nnz(~isnan(Zfull)) > 0
-                % Use surf + view(2), like single-site LSG
-                h = surf(ax, allDays, F, Zfull, 'LineStyle','none');
-                view(ax, [0 90]);
+                h = surf(ax(ii), allDays, F, Zfull, 'LineStyle','none');
+                view(ax(ii), [0 90]);
                 set(h, 'AlphaData', ~isnan(Zfull), ...
                        'AlphaDataMapping','none');
             end
-        else
-            Zfull = [];
         end
 
         % ---- axes styling ----
-        set(ax,'YDir','normal','YScale','log','TickDir','out','Box','off','Layer','top');
-        xlim(ax,[plotStart plotEnd]); ylim(ax,[min(F) max(F)]);
-        colormap(ax, jet); caxis(ax,[cxMIN cxMAX]);
+        set(ax(ii),'YDir','normal','YScale','log', ...
+                   'TickDir','out','Box','off','Layer','top');
+        xlim(ax(ii),[plotStart plotEnd]);
+        ylim(ax(ii),[min(F) max(F)]);
+        colormap(ax(ii), jet); caxis(ax(ii),[cxMIN cxMAX]);
 
-        % Only 10, 100, 1000 ticks (bigger font)
-        set(ax,'YTick',wantTicks,'YTickLabel',string(wantTicks),'FontSize',12);
+        set(ax(ii),'YTick',wantTicks,'YTickLabel',string(wantTicks), ...
+                   'FontSize',12);
 
-        % site label INSIDE top-left
+        % site label
         text(plotStart, max(F), site, 'FontWeight','bold', ...
              'VerticalAlignment','top','HorizontalAlignment','left', ...
-             'Margin',1,'Parent',ax);
+             'Margin',1,'Parent',ax(ii));
 
         % only bottom axis shows x labels
         if ii < nSites
-            set(ax,'XTickLabel',[]);
+            set(ax(ii),'XTickLabel',[]);
         else
-            datetick(ax,'x','yyyy','keeplimits');
+            datetick(ax(ii),'x','yyyy','keeplimits');
         end
 
-        % no per-axis ylabel
-        ylabel(ax,[]);
+        ylabel(ax(ii),[]);
     end
 
-    % shared y-label and colorbar (no title)
-    ylabel(tl,'Frequency (Hz)');
-    cb = colorbar; cb.Layout.Tile = 'east';
+    % shared y-label (use middle axis)
+    midAx = ax(round(nSites/2));
+    ylabel(midAx,'Frequency (Hz)');
+
+    % ---- ONE shared colorbar spanning full stack ----
+    cb = colorbar(ax(end));  % base it on any axis
+    cbPos = [left + width + cbGap, ...
+             bottom, ...
+             cbWidth, ...
+             1 - top - bottom];
+    cb.Position = cbPos;
     cb.Label.String = 'Amplitude (dB re 1\muPa^2/Hz)';
     set(gcf,'Position',[710    73   822   920])
 end
+
+
+% function makeStackedFigure(idxList, sites, sitePaths, ...
+%     allDays, F, fmask, plotStart, plotEnd, cxMIN, cxMAX, ...
+%     ftype, clean)
+% 
+%     nSites = numel(idxList);
+%     tl = tiledlayout(nSites,1, ...
+%     'TileSpacing','none', ...
+%     'Padding','none');
+%     set(gcf,'Color','w','Position',[160 60 1120 920]);
+% 
+%     nDays   = numel(allDays);
+%     wantTicks = [10 100 1000];
+%     wantTicks = wantTicks(wantTicks>=min(F) & wantTicks<=max(F));
+% 
+%     for ii = 1:nSites
+%         i     = idxList(ii);
+%         site  = sites{i};
+%         fpath = sitePaths{i};
+% 
+%         % ---- load all HourlyAves for this site ----
+%         L = dir(fullfile(fpath, ftype));
+%         SPL = []; datnm = []; poff = datenum([2000 0 0 0 0 0]);
+% 
+%         for j = 1:numel(L)
+%             S = load(fullfile(L(j).folder, L(j).name));
+% 
+%             % OPTIONAL: minimal generic FIFO cleaning (keep your detailed blocks if needed)
+%             if clean==1
+%                 if numel(S.freq) > 1001
+%                     if mean(S.mpwrtf(81,:))-mean(S.mpwrtf(78,:))>1.4 || ...
+%                        mean(S.mpwrtf(161,:))-mean(S.mpwrtf(158,:))>1.4
+%                         integers = 80*(1:12);
+%                         for ii2=1:numel(integers)
+%                             S.mpwrtf(integers(ii2)-2:integers(ii2)+2,:) = NaN;
+%                         end
+%                         S.mpwrtf = S.mpwrtf(1:1001,:);
+%                         S.mpwrtf = fillmissing(S.mpwrtf,'spline',1);
+%                     end
+%                 elseif numel(S.freq)==1001
+%                     if mean(S.mpwrtf(101,:))-mean(S.mpwrtf(99,:))>1.4 || ...
+%                        mean(S.mpwrtf(151,:))-mean(S.mpwrtf(148,:))>1.4
+%                         integers = 50*(1:20);
+%                         for ii2=1:numel(integers)
+%                             S.mpwrtf(integers(ii2)-2:integers(ii2)+2,:) = NaN;
+%                         end
+%                         S.mpwrtf = S.mpwrtf(1:1001,:);
+%                         S.mpwrtf = fillmissing(S.mpwrtf,'spline',1);
+%                     end
+%                 end
+%             end
+% 
+%             SPL   = [SPL,   S.mpwrtf(1:1001,:)]; %#ok<AGROW>
+%             datnm = [datnm; S.ptime + poff];     %#ok<AGROW>
+%         end
+% 
+%         % ---- hourly -> daily median ----
+%         ax = nexttile(tl);
+%         set(ax,'Color',[0.85 0.85 0.85]); hold(ax,'on');
+% 
+%         if ~isempty(SPL)
+%             [~,ord] = sort(datnm);
+%             datnm = datnm(ord);  SPL = SPL(:,ord);
+%             datnm = datenum(dateshift(datetime(datestr(datnm)),'start','hour'));
+%             SPL(SPL==0) = NaN;
+% 
+%             TT  = timetable(datetime(datestr(datnm)), SPL');
+%             TTD = retime(TT,'daily','median');       % days x freq
+%             dailySPL2 = TTD.Var1.';                  % freq x days
+%             dailydays = floor(datenum(TTD.Time));
+% 
+%             Z = dailySPL2(fmask,:);
+%             Zfull = nan(numel(F), nDays);
+%             [tf,loc] = ismember(dailydays, allDays);
+%             Zfull(:, loc(tf)) = Z(:, tf);
+% 
+%             if nnz(~isnan(Zfull)) > 0
+%                 % Use surf + view(2), like single-site LSG
+%                 h = surf(ax, allDays, F, Zfull, 'LineStyle','none');
+%                 view(ax, [0 90]);
+%                 set(h, 'AlphaData', ~isnan(Zfull), ...
+%                        'AlphaDataMapping','none');
+%             end
+%         else
+%             Zfull = [];
+%         end
+% 
+%         % ---- axes styling ----
+%         set(ax,'YDir','normal','YScale','log','TickDir','out','Box','off','Layer','top');
+%         xlim(ax,[plotStart plotEnd]); ylim(ax,[min(F) max(F)]);
+%         colormap(ax, jet); caxis(ax,[cxMIN cxMAX]);
+% 
+%         % Only 10, 100, 1000 ticks (bigger font)
+%         set(ax,'YTick',wantTicks,'YTickLabel',string(wantTicks),'FontSize',12);
+% 
+%         % site label INSIDE top-left
+%         text(plotStart, max(F), site, 'FontWeight','bold', ...
+%              'VerticalAlignment','top','HorizontalAlignment','left', ...
+%              'Margin',1,'Parent',ax);
+% 
+%         % only bottom axis shows x labels
+%         if ii < nSites
+%             set(ax,'XTickLabel',[]);
+%         else
+%             datetick(ax,'x','yyyy','keeplimits');
+%         end
+% 
+%         % no per-axis ylabel
+%         ylabel(ax,[]);
+%     end
+% 
+%     % shared y-label and colorbar (no title)
+%     ylabel(tl,'Frequency (Hz)');
+%     cb = colorbar; cb.Layout.Tile = 'east';
+%     cb.Label.String = 'Amplitude (dB re 1\muPa^2/Hz)';
+%     set(gcf,'Position',[710    73   822   920])
+% end
