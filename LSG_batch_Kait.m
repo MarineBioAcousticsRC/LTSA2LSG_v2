@@ -2,11 +2,12 @@
 clear all; close all;
 
 % autoRun_LTSA_daily_spectra
-thisDisk = 'W:\GofMX\CE\df100\GOM_CE_05'; %can be a subfolder with multiple deployments or just a single deployment folder
+thisDisk = 'W:\Baja\GI\df100'; %can be a subfolder with multiple deployments or just a single deployment folder
+dfWhat = '100';
 NumAves = 5;     % number of time slices (spectral averages) to read per raw file
-timeResol = 2;   % time bin resolution 0 = month, 1 = days, 2 = hours
+timeResol = 1;   % time bin resolution 0 = month, 1 = days, 2 = hours
 harpDataSummaryCSV = 'C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20250917.csv';
-outDisk = 'F:\GOM_LSG_2025\CE';
+outDisk = 'F:\Baja_GI_Ambient_Noise\df100';
 TFsFolder = 'L:\Shared drives\MBARC_TF';
 mkdir(outDisk)
 dirList = dir(thisDisk);
@@ -31,15 +32,18 @@ for iDir = 3:nDirs
             if ~isdir(outDir)
                 mkdir(outDir)
             end
-            LTSAdailySpectra_auto(LTSAlist,outDir,NumAves,timeResol,harpDataSummaryCSV,TFsFolder)
+            LTSAdailySpectra_auto(LTSAlist,outDir,NumAves,timeResol,harpDataSummaryCSV,TFsFolder,dfWhat)
 
         end
     end
 end
 end
 %% PLOT LSG
-% plotDailyLSG('L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100',...
-%     'CHNMS','CHNMS',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF')
+% plotDailyLSG('L:\Shared drives\MBARC_GOM\GOM x SIO x NOAA\GOM Ambient Noise\HourlyAves\TUX\Daily\df1',...
+%     'GOM_TUX','GOM_TUX',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF',100,200000)
 % 
-% plotDailyLSG_clean('L:\Shared drives\MBARC_DAM\Current Reports\CADEMO\Ambient Soundscape\df100',...
-%     'CHNMS','CHNMS',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF')
+% plotDailyLSG('L:\Shared drives\MBARC_GOM\GOM x SIO x NOAA\GOM Ambient Noise\HourlyAves\TUX\Daily\df20',...
+%     'GOM_TUX','GOM_TUX',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF',100,5000)
+% % % 
+plotDailyLSG_clean('F:\Baja_GI_Ambient_Noise\df100',...
+    'Baja_GI','Baja_GI',1,1,'MBARC_TFs','L:\Shared drives\MBARC_TF',40,90,2000)

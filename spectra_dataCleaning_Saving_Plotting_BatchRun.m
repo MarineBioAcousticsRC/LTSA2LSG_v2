@@ -5,7 +5,7 @@ clearvars
 % with folders for multiple sites (ex: GOM)
 %% user defined parameters
 region = 'GOM';
-rootDir = 'F:\GOM_LSG_2025\';
+rootDir = 'L:\Shared drives\MBARC_GOM\GOM x SIO x NOAA\GOM Ambient Noise\HourlyAves\TUX\';
 ftype = '*HourlyAves.mat';
 clean = 0; %Remove FIFO and tonnes (1)
 

@@ -1,4 +1,4 @@
-function LTSAdailySpectra_auto(LTSAlist,outDir,NA,tres,harpDataSummaryCSV,TFsFolder)
+function LTSAdailySpectra_auto(LTSAlist,outDir,NA,tres,harpDataSummaryCSV,TFsFolder,dfWhat)
 % 141103 smw
 % reworked from LTSAdailySpectra_midFreq.m which was from
 % LTSAmonthlySpectra.m
@@ -247,7 +247,7 @@ for m = 1:nm    % loop over time average bins
         SA = nave - NA;
         skip = nf*(SA);
         % initial time slice to start at
-        if fs0 == 2000 || fs0 == 200000 || fs0 == 10000
+        if fs0 == 2000 || fs0 == 200000 || fs0 == 10000 || fs0 == 20000
             IA = (nave + NA)*nf;  % this should work better for 320kHz vs commented 200kHz hardwired above
         elseif fs0 == 3200 || fs0 == 320000
             IA = (nave + NA-1)*nf;
@@ -337,7 +337,7 @@ end
 
 % save results
 if 1
-    outFile = fullfile(outDir,[dBaseName,'_df100_',tString,'Aves.mat']);
+    outFile = fullfile(outDir,[dBaseName,'_df',dfWhat,'_',tString,'Aves.mat']);
     save(outFile,'ptime','mpwrtf','freq','nmave', 'tf_file','dBaseName',...
     'Ptf')
 end

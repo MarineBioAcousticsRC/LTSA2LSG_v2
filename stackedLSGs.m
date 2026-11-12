@@ -201,6 +201,24 @@ function makeStackedFigure(idxList, sites, sitePaths, ...
             [tf,loc] = ismember(dailydays, allDays);
             Zfull(:, loc(tf)) = Z(:, tf);
 
+% ---- site-specific bogus low-SPL removal ----
+if strcmp(site,'GC') || strcmp(site,'SL')
+    % day-wise max across frequencies
+    maxDaily = max(Zfull, [], 1, 'omitnan');
+
+    % first criterion: deep-blue everywhere
+    badCols = maxDaily < 55;
+
+    % extra criterion just for SL: most freqs are very low
+    if strcmp(site,'SL')
+        fracLow = sum(Zfull < 55, 1, 'omitnan') ./ ...
+                  max(1, sum(~isnan(Zfull), 1));   % avoid /0
+        badCols = badCols | fracLow > 0.9;         % >90% of freqs <55 dB
+    end
+
+    Zfull(:, badCols) = NaN;
+end
+
             if nnz(~isnan(Zfull)) > 0
                 h = surf(ax(ii), allDays, F, Zfull, 'LineStyle','none');
                 view(ax(ii), [0 90]);
@@ -248,121 +266,3 @@ function makeStackedFigure(idxList, sites, sitePaths, ...
     cb.Label.String = 'Amplitude (dB re 1\muPa^2/Hz)';
     set(gcf,'Position',[710    73   822   920])
 end
-
-
-% function makeStackedFigure(idxList, sites, sitePaths, ...
-%     allDays, F, fmask, plotStart, plotEnd, cxMIN, cxMAX, ...
-%     ftype, clean)
-% 
-%     nSites = numel(idxList);
-%     tl = tiledlayout(nSites,1, ...
-%     'TileSpacing','none', ...
-%     'Padding','none');
-%     set(gcf,'Color','w','Position',[160 60 1120 920]);
-% 
-%     nDays   = numel(allDays);
-%     wantTicks = [10 100 1000];
-%     wantTicks = wantTicks(wantTicks>=min(F) & wantTicks<=max(F));
-% 
-%     for ii = 1:nSites
-%         i     = idxList(ii);
-%         site  = sites{i};
-%         fpath = sitePaths{i};
-% 
-%         % ---- load all HourlyAves for this site ----
-%         L = dir(fullfile(fpath, ftype));
-%         SPL = []; datnm = []; poff = datenum([2000 0 0 0 0 0]);
-% 
-%         for j = 1:numel(L)
-%             S = load(fullfile(L(j).folder, L(j).name));
-% 
-%             % OPTIONAL: minimal generic FIFO cleaning (keep your detailed blocks if needed)
-%             if clean==1
-%                 if numel(S.freq) > 1001
-%                     if mean(S.mpwrtf(81,:))-mean(S.mpwrtf(78,:))>1.4 || ...
-%                        mean(S.mpwrtf(161,:))-mean(S.mpwrtf(158,:))>1.4
-%                         integers = 80*(1:12);
-%                         for ii2=1:numel(integers)
-%                             S.mpwrtf(integers(ii2)-2:integers(ii2)+2,:) = NaN;
-%                         end
-%                         S.mpwrtf = S.mpwrtf(1:1001,:);
-%                         S.mpwrtf = fillmissing(S.mpwrtf,'spline',1);
-%                     end
-%                 elseif numel(S.freq)==1001
-%                     if mean(S.mpwrtf(101,:))-mean(S.mpwrtf(99,:))>1.4 || ...
-%                        mean(S.mpwrtf(151,:))-mean(S.mpwrtf(148,:))>1.4
-%                         integers = 50*(1:20);
-%                         for ii2=1:numel(integers)
-%                             S.mpwrtf(integers(ii2)-2:integers(ii2)+2,:) = NaN;
-%                         end
-%                         S.mpwrtf = S.mpwrtf(1:1001,:);
-%                         S.mpwrtf = fillmissing(S.mpwrtf,'spline',1);
-%                     end
-%                 end
-%             end
-% 
-%             SPL   = [SPL,   S.mpwrtf(1:1001,:)]; %#ok<AGROW>
-%             datnm = [datnm; S.ptime + poff];     %#ok<AGROW>
-%         end
-% 
-%         % ---- hourly -> daily median ----
-%         ax = nexttile(tl);
-%         set(ax,'Color',[0.85 0.85 0.85]); hold(ax,'on');
-% 
-%         if ~isempty(SPL)
-%             [~,ord] = sort(datnm);
-%             datnm = datnm(ord);  SPL = SPL(:,ord);
-%             datnm = datenum(dateshift(datetime(datestr(datnm)),'start','hour'));
-%             SPL(SPL==0) = NaN;
-% 
-%             TT  = timetable(datetime(datestr(datnm)), SPL');
-%             TTD = retime(TT,'daily','median');       % days x freq
-%             dailySPL2 = TTD.Var1.';                  % freq x days
-%             dailydays = floor(datenum(TTD.Time));
-% 
-%             Z = dailySPL2(fmask,:);
-%             Zfull = nan(numel(F), nDays);
-%             [tf,loc] = ismember(dailydays, allDays);
-%             Zfull(:, loc(tf)) = Z(:, tf);
-% 
-%             if nnz(~isnan(Zfull)) > 0
-%                 % Use surf + view(2), like single-site LSG
-%                 h = surf(ax, allDays, F, Zfull, 'LineStyle','none');
-%                 view(ax, [0 90]);
-%                 set(h, 'AlphaData', ~isnan(Zfull), ...
-%                        'AlphaDataMapping','none');
-%             end
-%         else
-%             Zfull = [];
-%         end
-% 
-%         % ---- axes styling ----
-%         set(ax,'YDir','normal','YScale','log','TickDir','out','Box','off','Layer','top');
-%         xlim(ax,[plotStart plotEnd]); ylim(ax,[min(F) max(F)]);
-%         colormap(ax, jet); caxis(ax,[cxMIN cxMAX]);
-% 
-%         % Only 10, 100, 1000 ticks (bigger font)
-%         set(ax,'YTick',wantTicks,'YTickLabel',string(wantTicks),'FontSize',12);
-% 
-%         % site label INSIDE top-left
-%         text(plotStart, max(F), site, 'FontWeight','bold', ...
-%              'VerticalAlignment','top','HorizontalAlignment','left', ...
-%              'Margin',1,'Parent',ax);
-% 
-%         % only bottom axis shows x labels
-%         if ii < nSites
-%             set(ax,'XTickLabel',[]);
-%         else
-%             datetick(ax,'x','yyyy','keeplimits');
-%         end
-% 
-%         % no per-axis ylabel
-%         ylabel(ax,[]);
-%     end
-% 
-%     % shared y-label and colorbar (no title)
-%     ylabel(tl,'Frequency (Hz)');
-%     cb = colorbar; cb.Layout.Tile = 'east';
-%     cb.Label.String = 'Amplitude (dB re 1\muPa^2/Hz)';
-%     set(gcf,'Position',[710    73   822   920])
-% end

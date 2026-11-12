@@ -17,7 +17,7 @@ spflag = 1; % save plot flag yes=1, no=0
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 codePath = mfilename('fullpath');
 [codeDir,~] = fileparts(codePath);
-harpDataSummaryCSV = 'E:\Ambient Soundscape\HARPDataSummary_20241030.csv';
+harpDataSummaryCSV = 'C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20250917.csv';
 
 %harpDataSummaryCSV = fullfile(codeDir,'HARPdataSummary_20200122.csv');
 harpDataSummary = readtable(harpDataSummaryCSV);
@@ -34,29 +34,6 @@ if fs == 2000 || fs == 3200
     %cmin = 1; cmax = 110;   %[dB]
     fstr = 'Hz';
     ptype = 1;  % high freq linear =0, low freq log =1
-elseif fs == 10000
-    npF = 501; % number of frequency bins
-    %Fp = 0:0.01:5;
-    la = 0;        % plot min freq
-    lb = 4;       % plot max freq
-    % color min and max in spectral power
-%     cmn = 45;
-%     cmx = 70;
-    % cmin = 1; cmax = 80;   %[dB]
-    % fstr = 'kHz';
-    ptype = 1;  % high freq linear =0, low freq log =1
-    if ptype == 1
-        Fp = 0:10:5000;
-        la = 10;        % plot min freq
-        lb = 5000;       % plot max freq
-        fstr = 'Hz';
-    else
-        Fp = 0:0.01:5;
-        la = 0;        % plot min freq
-        lb = 5;       % plot max freq
-        fstr = 'kHz';
-%         cmx = 70;   %[dB]
-    end
 elseif fs == 200000
     npF = 1001; % number of frequency bins
     Fp = 0:0.1:100;
@@ -79,6 +56,20 @@ elseif fs == 320000
     %cmin = 1; cmax = 70;   %[dB]
     fstr = 'kHz';
     ptype = 0;  % high freq linear =0, low freq log =1
+ elseif fs == 10000
+    % Data from 0–5000 Hz in 10 Hz bins
+    npF = 501;               % number of frequency bins
+    Fp  = 0:10:5000;         % frequency axis [Hz]
+    
+    la  = 10;                % plot min freq [Hz]
+    lb  = 5000;              % plot max freq [Hz]
+
+    cmn = 45;                % color min (dB)
+    % cmx is still passed in via the function input
+
+    fstr  = 'Hz';            % frequency units for label
+    ptype = 1;               % plot with log-frequency axis
+
 else
     disp(['Error, Unknown Sample Rate : ',num2str(fs)])
     return
@@ -283,7 +274,7 @@ datetick('x','mmm-yy','keeplimits','keepticks')
 
 %plot gray background
 hold on
-rectangle('Position',[Tp(1) 10 Tp(end)-Tp(1) 1000],'FaceColor',[0.7 0.7 0.7])
+rectangle('Position',[Tp(1) la Tp(end)-Tp(1) (lb - la)],'FaceColor',[0.7 0.7 0.7])
 
 % datetick
 

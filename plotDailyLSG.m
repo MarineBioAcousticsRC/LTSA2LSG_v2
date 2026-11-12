@@ -17,7 +17,7 @@ spflag = 1; % save plot flag yes=1, no=0
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 codePath = mfilename('fullpath');
 [codeDir,~] = fileparts(codePath);
-harpDataSummaryCSV = 'I:\Atlantic\Ambient Soundscape\HARPDataSummary_20241030.csv';
+harpDataSummaryCSV = 'C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20250917.csv';
 
 %harpDataSummaryCSV = fullfile(codeDir,'HARPdataSummary_20200122.csv');
 harpDataSummary = readtable(harpDataSummaryCSV);
