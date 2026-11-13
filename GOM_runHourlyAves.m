@@ -12,8 +12,8 @@
 %      drives (e.g. \\frosty\GofMX_Decimated_12\GOM_GC_18) whose data start
 %      after minDataStart.
 %   3. Looks up the deployment's preamp in the HARP data summary (exact
-%      Data_ID match) and picks that preamp's TF (rev B, else rev A -- the
-%      same rule earlier runs used).
+%      Data_ID match) and picks that preamp's LATEST TF revision (highest
+%      letter, e.g. C over B over A; newest date if tied).
 %   4. Averages all *_df100.ltsa files from every disk of the deployment and
 %      saves <outRoot>\<SITE>\<Data_ID>_df100_HourlyAves.mat. New sites get a
 %      new folder. Existing outputs are never overwritten unless overwrite=true.
@@ -58,7 +58,7 @@ S = readtable(harpSummary, 'TextType', 'string');
 S.key = lower(strrep(S.Data_ID, '-', ''));
 
 tfList = dir(fullfile(TFsFolder, '**', '*_HARP.tf'));
-tfTok  = regexp({tfList.name}, '^(\d+)_\d+_([A-Za-z])_HARP\.tf$', 'tokens', 'once');
+tfTok  = regexp({tfList.name}, '^(\d+)_(\d+)_([A-Za-z])_HARP\.tf$', 'tokens', 'once');
 
 depFolders = {};
 for r = 1:numel(decimatedRoots)
@@ -138,22 +138,22 @@ for s = 1:height(sites)
             preamp = double(S.PreAmp(iS));
         end
 
-        % TF: rev B, else rev A (same rule as earlier runs); note other revisions
+        % TF: always the LATEST revision (highest letter; newest date if tied)
         isPre = cellfun(@(t) ~isempty(t) && str2double(t{1}) == preamp, tfTok);
-        revs  = cellfun(@(t) upper(t{2}), tfTok(isPre), 'UniformOutput', false);
-        cand  = tfList(isPre);
-        iTF = find(strcmp(revs, 'B'), 1);
-        if isempty(iTF), iTF = find(strcmp(revs, 'A'), 1); end
-        if isempty(iTF)
-            runLog(end+1,:) = {code, depID, 'FAILED', sprintf('No rev A/B TF for preamp %d in %s', preamp, TFsFolder), ...
+        if ~any(isPre)
+            runLog(end+1,:) = {code, depID, 'FAILED', sprintf('No TF for preamp %d in %s', preamp, TFsFolder), ...
                 preamp, '', startStr, ''}; %#ok<SAGROW>
             continue
         end
+        revs  = cellfun(@(t) upper(t{3}), tfTok(isPre), 'UniformOutput', false);
+        dates = cellfun(@(t) str2double(t{2}), tfTok(isPre));
+        cand  = tfList(isPre);
+        [~, ord] = sortrows([double(char(revs)) dates(:)], [-1 -2]);
+        iTF = ord(1);
         tfPath = fullfile(cand(iTF).folder, cand(iTF).name);
         note = '';
-        otherRevs = setdiff(revs, {'A','B'});
-        if ~isempty(otherRevs)
-            note = sprintf('Note: preamp %d also has rev %s TF (not used). ', preamp, strjoin(otherRevs, ','));
+        if numel(cand) > 1
+            note = sprintf('Latest of %d TFs for preamp %d (revs %s). ', numel(cand), preamp, strjoin(unique(revs), ','));
         end
 
         % LTSAs from all disks

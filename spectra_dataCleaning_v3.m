@@ -39,7 +39,8 @@ outRoot = '';        % '' = save next to the inputs (each site folder)
 outTag  = 'v3';      % output file version: <region>_<site>_Daily_cleaned_<outTag>.mat
 
 minValidDate   = datetime(2004,1,1); % hours stamped earlier are bad timestamps -> dropped (and reported)
-clean          = 0;  % 1 = FIFO removal (+ SOCAL/CHNMS site-specific cleaning)
+clean          = 1;  % 1 = FIFO removal (+ SOCAL/CHNMS site-specific cleaning); used for GOM v3
+                     %     (44 of 127 GOM df100 deployments have FIFO at 50 Hz harmonics)
 applyThreshold = []; % [] = region default (SOCAL on, others off); true/false to force
 
 % LSG colour axis

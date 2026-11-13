@@ -28,7 +28,7 @@ hour. The old code used the start of the second file.
 | New vs already processed | Manual | Only deployments whose data start after `minDataStart`. Never overwrites an existing output unless `overwrite = true` |
 | Multi-disk deployments | One LTSA folder at a time | Collects the `*_df100.ltsa` from every `diskNN_df100` folder of a deployment into one output file |
 | Deployment → preamp | Fuzzy match of the LTSA name against the HARP summary (first partial match wins) | Exact `Data_ID` match. `preampOverride` sets the preamp for deployments not yet in the summary |
-| Preamp → TF | First file whose first 4 characters contain the preamp number; rev B, else rev A | Exact preamp number; rev B, else rev A (same rule). Logs other revisions (e.g. rev C) so you can decide |
+| Preamp → TF | First file whose first 4 characters contain the preamp number; rev B, else rev A | Exact preamp number; **always the latest revision** (highest letter, e.g. C over B over A). The old code never used rev C or later |
 | Failures | Returns with only a console warning if no deployment or TF match (no output file, easy to miss in a batch) | Each deployment gets DONE / SKIPPED / FAILED with a reason |
 | Output folder | One folder for everything | `<outRoot>\<SITE>\`, new site folders created as needed. 4-channel codes like `DT_18_01` get their own folder so they are not mixed into the single-channel time series |
 | Log | none | Summary table printed and saved as `GOM_HourlyAves_log_<date>.csv` in `outRoot` |
@@ -76,7 +76,7 @@ checked.** The `*_HourlyAves.mat` files themselves were never thresholded.
 |---|---|---|
 | Files | 3 copies (single site, batch wrapper, batch body) | One script. `inPath` can be a single site folder or a folder of site folders (`sites = {}` = all, or a list) |
 | Threshold | Always on; rows deleted | `applyThreshold = []` means on for SOCAL, off for every other region; `true`/`false` overrides it. Flagged rows are **set to NaN, not deleted**, and the count is reported |
-| FIFO removal | Same logic | Same logic. Reports which deployments it triggered on |
+| FIFO removal | Same logic, but the GOM runs used `clean = 0`, so **no GOM v2 file had FIFO removed** | Same logic, **on for GOM v3** (`clean = 1`). Only deployments where the 100 or 150 Hz bin is > 1.4 dB above its neighbour are changed (44 of 127 GOM df100 deployments, e.g. most DC and RW ones). Which deployments were changed is saved in `info.fifoRemovedFrom` |
 | SoCal/CHNMS site rules | Inline | Same rules, moved into `removeFIFO` / `removeBadHoursSOCAL` functions and only used for those regions |
 | Bad timestamps | Kept (e.g. one `GofMX_DC05` hour stamped 2000-01-11 stretched the DC plots back to 2000) | Hours stamped before `minValidDate` (2004-01-01) are dropped and reported |
 | Frequency axis | Assumed 1 Hz bins (`freq = 0:1:1000`) | Checks the HourlyAves `freq` and stops with an error if it isn't 1 Hz bins from 0 Hz |
@@ -92,3 +92,16 @@ hours/days are NaN rows instead of missing rows.
 - `masterDFday`: `datenum, year, month, day`, the same four bands, then the daily median spectrum
   for **0–1000 Hz in 1 Hz bins** (columns 9–1009; column 9 = 0 Hz)
 - Levels are dB re 1 µPa²/Hz. Band levels are the mean spectrum level across the band.
+
+---
+
+## Step 3: figures and slides for the yearly update (GOM)
+
+| Script | What it makes |
+|---|---|
+| `GOM_plotLSGupdate.m` | Full-record v3 daily LSG per site (plain, and with a dashed line at the newest deployment) and a zoom of the newest deployment |
+| `GOM_octaveBandLevels.m` | Median hourly-average octave band levels (31.5, 63, 125, 500 Hz) per deployment and per site for the report period, as in MPL TM 678 sec. 4.4.1 |
+| `GOM_monthlyOctaveBands.m` | Monthly octave band medians through each new deployment, to spot hydrophone sensitivity drop-off |
+| `GOM_makeSlides.ps1` | PowerPoint deck from the figures, the octave band tables and a `site_observations.txt` file (one line of notes per site) |
+
+Run them in that order. Octave bands: 31.5 Hz = airguns, 63/125 Hz = shipping (125 Hz also Rice's whale calls), 500 Hz = weather.
