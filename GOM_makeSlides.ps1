@@ -199,9 +199,9 @@ Add-SlideTitle $s 'What the v3 daily spectrograms show' 'Each site slide: top = 
 $cw = ($W - 2*$M - 24) / 2
 $cards = @(
     @{ X = $M;            Head = 'v3 daily spectra';
-       Body = "Daily median of the hourly, transfer-function-corrected spectra (10${nd}1000 Hz, 1 Hz bins)`rFIFO noise (50 Hz harmonics) removed where detected (45 deployments)`rNo amplitude threshold: every recorded day is kept" },
+       Body = "Daily median of the hourly, transfer-function-corrected spectra (10${nd}1000 Hz, 1 Hz bins)`rFIFO noise (50 Hz harmonics) removed where detected (45 deployments)`rDeck test (hours before each deployment's data start) removed`rNo amplitude threshold: every recorded day is kept`rBands: 31.5, 63, 125, 500 Hz octave bands (MPL TM 678)" },
     @{ X = $M + $cw + 24; Head = 'Updated in the shared folder';
-       Body = "HourlyAves for all 13 new 2025${nd}2026 deployments`rv3 cleaned daily/hourly files (.mat, .csv) and LSGs for all 42 GOM sites`rOld v2 files moved to each site's Old files folder, with a README" }
+       Body = "HourlyAves for all 13 new 2025${nd}2026 deployments`rv3 cleaned daily/hourly files (.mat, .csv) and LSGs for all 42 GOM sites`rREADME.txt in each site folder: every file and the script that made it`rOld v2 files moved to each site's Old files folder, with a README" }
 )
 foreach ($k in $cards) {
     [void](Add-Card $s $k.X 84 $cw 210 $MIST)
@@ -302,7 +302,7 @@ for ($r = 1; $r -le $nr; $r++) {
 }
 Add-Notes $s ("Sorted from highest to lowest 31.5 Hz octave band level; shaded rows are at or above 105 dB. " +
     "As in MPL TM 678, the 31.5 Hz octave band represents airgun survey noise and the 63 and 125 Hz bands shipping noise in the absence of airguns (125 Hz also covers Rice's whale call frequencies). " +
-    "Levels are medians of hourly-average octave band levels from the HourlyAves files, with FIFO noise interpolated out as in v3; the 2020${nd}2025 medians (Aug 2020 ${nd} Jul 2025) reproduce the report (e.g. 109 dB at GC and CE at 31.5 Hz; 82 dB at DC at 125 Hz). " +
+    "Levels are medians of hourly-average octave band levels from the HourlyAves files, with FIFO noise interpolated out and the deck test removed as in v3; the 2020${nd}2025 medians (Aug 2020 ${nd} Jul 2025) reproduce the report (e.g. 109 dB at GC and CE at 31.5 Hz; 82 dB at DC at 125 Hz). " +
     "Airgun-band levels in 2025${nd}2026 were above the 2020${nd}2025 median at most long-term sites (GC, CE, MC, MR, LC), unchanged at AC and DC, and much lower at DT. " +
     "Tables: GOM_deployment_octave_bands.csv and GOM_site_octave_bands_2020-2025.csv.")
 

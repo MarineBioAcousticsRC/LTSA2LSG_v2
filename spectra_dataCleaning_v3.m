@@ -16,15 +16,19 @@
 %                 80 Hz for 320 kHz). Deployments where this triggers are listed.
 %                 SOCAL / CHNMS also get their site-specific FIFO, bad-day and
 %                 tone removal (hand-tuned; see removeFIFO / removeBadHoursSOCAL).
+%   trimDeckTest -> all regions: hours before each deployment's Data_Start in the
+%                 HARP data summary (the deck test) are dropped.
 %   threshold  -> SOCAL only by default: hours with 18-25 Hz band outside
 %                 50-103 dB and days >= 82 dB are set to NaN (they used to be
 %                 deleted). Off for GOM -- it removed good data there.
 %
 % Outputs
-%   masterDFhour : [datenum Y M D H  SPL18-25 SPL40-48 SPL56-71 SPL708-891]
-%   masterDFday  : [datenum Y M D  SPL18-25 SPL40-48 SPL56-71 SPL708-891  spectrum 0:1000 Hz]
+%   masterDFhour : [datenum Y M D H  band1 band2 band3 band4]
+%   masterDFday  : [datenum Y M D  band1 band2 band3 band4  spectrum 0:1000 Hz]
 %   Also saved: freq (Hz, for the spectrum columns), hourCols, dayCols, info.
-%   Band levels are dB re 1 uPa^2/Hz (mean spectrum level in the band).
+%   Bands depend on region (see getBands):
+%     GOM   : octave bands 31.5, 63, 125, 500 Hz (MPL TM 678), band level in dB re 1 uPa^2
+%     other : 18-25, 40-48, 56-71, 708-891 Hz (SOCAL), mean spectrum level in dB re 1 uPa^2/Hz
 %
 % Tested in MATLAB R2023a.
 
@@ -42,13 +46,18 @@ minValidDate   = datetime(2004,1,1); % hours stamped earlier are bad timestamps 
 clean          = 1;  % 1 = FIFO removal (+ SOCAL/CHNMS site-specific cleaning); used for GOM v3
                      %     (44 of 127 GOM df100 deployments have FIFO at 50 Hz harmonics)
 applyThreshold = []; % [] = region default (SOCAL on, others off); true/false to force
+trimDeckTest   = true; % drop hours before each deployment's Data_Start in the HARP data summary
+                       % (the deck test); deployments not in the summary: drop a <=3 h block at
+                       % the start that is followed by a > 3 h gap
+harpSummary    = 'C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20261016.xlsx';
+writeReadme    = true; % write README.txt in each site folder (what each file is, which script made it)
 
 % LSG colour axis
 cxMIN = 40;
 cxMAX = 110;
 
 % Plots to make
-Seasonal  = false;   % seasonal spectra
+Seasonal  = true;    % seasonal spectra
 Bands_hr  = false;   % hourly band time series
 Bands_day = false;   % daily band time series
 LSG       = true;    % long-term spectrogram
@@ -62,12 +71,24 @@ if isempty(applyThreshold)
 else
     cfg.applyThreshold = logical(applyThreshold);
 end
+cfg.trimDeckTest = trimDeckTest;
+cfg.writeReadme  = writeReadme;
+cfg.dataStart    = containers.Map('KeyType', 'char', 'ValueType', 'double');
+if trimDeckTest
+    cfg.dataStart = readDataStart(harpSummary);
+    [~, hsName, hsExt] = fileparts(harpSummary);
+    cfg.harpSummaryName = [hsName hsExt];
+else
+    cfg.harpSummaryName = '';
+end
 
 if ~isempty(dir(fullfile(inPath, ftype)))          % single site folder
     [~, siteName] = fileparts(regexprep(inPath, '[\\/]+$', ''));
     siteList = {siteName};
     sitePaths = {inPath};
+    logDir = fileparts(regexprep(inPath, '[\\/]+$', ''));
 else                                               % root folder of sites
+    logDir = inPath;
     d = dir(inPath);
     d = d([d.isdir] & ~ismember({d.name}, {'.','..'}));
     if ~isempty(sites)
@@ -77,6 +98,7 @@ else                                               % root folder of sites
     sitePaths = fullfile(inPath, siteList);
 end
 fprintf('%d site folder(s) under %s\n', numel(siteList), inPath);
+cfg.newPipelineFiles = readHourlyAvesLogs(logDir);   % HourlyAves made by GOM_runHourlyAves.m
 
 %% ------------------------- Run ------------------------------------------
 summary = cell(0, 3);
@@ -115,8 +137,9 @@ SPL = [];
 datnum = [];
 poff = datenum([2000 0 0 0 0 0]);
 fifoHit = {};
+deck = cell(numel(listing), 6);   % deployment, method, hours dropped, first hour kept, TF file, made by
 
-%% Load files (+ FIFO removal)
+%% Load files (+ FIFO removal, deck test removal)
 for f = 1:numel(listing)
     lsg = load(fullfile(listing(f).folder, listing(f).name));
     fq = lsg.freq(:);
@@ -128,9 +151,24 @@ for f = 1:numel(listing)
         [lsg, hit] = removeFIFO(lsg, region, site);
         if hit, fifoHit{end+1} = lsg.dBaseName; end %#ok<AGROW>
     end
-    SPL = [SPL lsg.mpwrtf(1:1001, :)]; %#ok<AGROW>
-    datnum = [datnum; lsg.ptime(:) + poff]; %#ok<AGROW>
+    t = lsg.ptime(:) + poff;
+    depID = regexprep(listing(f).name, '(_df\d+)?_?HourlyAves\.mat$', '');
+    if cfg.trimDeckTest
+        [keep, method] = deckTestMask(t, depID, cfg.dataStart);
+    else
+        keep = true(size(t)); method = 'not trimmed (trimDeckTest = false)';
+    end
+    firstKept = '';
+    if any(keep), firstKept = datestr(min(t(keep)), 'yyyy-mm-dd HH:MM'); end
+    tfName = '';
+    if isfield(lsg, 'tf_file'), [~, tfName, tfExt] = fileparts(char(lsg.tf_file)); tfName = [tfName tfExt]; end
+    if ismember(listing(f).name, cfg.newPipelineFiles), madeBy = 'GOM_runHourlyAves.m'; else, madeBy = 'LSG_batch_Kait.m'; end
+    deck(f, :) = {depID, method, sum(~keep), firstKept, tfName, madeBy};
+    SPL = [SPL lsg.mpwrtf(1:1001, keep)]; %#ok<AGROW>
+    datnum = [datnum; t(keep)]; %#ok<AGROW>
 end
+deckTbl = cell2table(deck, 'VariableNames', {'Deployment', 'DeckTestMethod', 'HoursDropped', 'FirstHourKept', 'TF', 'HourlyAvesMadeBy'});
+nDeck = sum(deckTbl.HoursDropped);
 
 %% Drop bad timestamps, sort, round to the hour
 badTime = datnum < datenum(cfg.minValidDate);
@@ -171,8 +209,12 @@ if strcmpi(region, 'SOCAL')
 end
 
 %% Band levels (freq index = Hz + 1)
-bands = {18:25, 40:48, 56:71, 708:891};
-bandLvl  = @(X, b) 10*log10(sum(10.^(X(b+1, :)/10))) - 10*log10(numel(b));
+[bands, bandNames, bandTitles, bandUnits, perHz] = getBands(region);
+if perHz   % mean spectrum level in the band (dB re 1 uPa^2/Hz)
+    bandLvl = @(X, b) 10*log10(sum(10.^(X(b+1, :)/10))) - 10*log10(numel(b));
+else       % band level, summed over the band (dB re 1 uPa^2)
+    bandLvl = @(X, b) 10*log10(sum(10.^(X(b+1, :)/10)));
+end
 hrBand  = cellfun(@(b) bandLvl(SPL, b),       bands, 'UniformOutput', false);
 dayBand = cellfun(@(b) bandLvl(dailySPL2, b), bands, 'UniformOutput', false);
 
@@ -185,12 +227,15 @@ seasonSPL = cellfun(@(i) median(dailySPL2(:, i), 2, 'omitnan'), season, 'Uniform
 %% Tables
 masterDFhour = [datnum YY MM DD HH hrBand{1}' hrBand{2}' hrBand{3}' hrBand{4}'];
 masterDFday  = [dailydatnum YYd MMd DDd dayBand{1}' dayBand{2}' dayBand{3}' dayBand{4}' dailySPL2'];
-hourCols = {'datenum','year','month','day','hour','SPL_18_25Hz','SPL_40_48Hz','SPL_56_71Hz','SPL_708_891Hz'};
+hourCols = [{'datenum','year','month','day','hour'}, bandNames];
 dayCols  = [hourCols([1:4 6:9]), arrayfun(@(x) sprintf('%dHz', x), freq', 'UniformOutput', false)];
 
 %% Amplitude threshold (18-25 Hz band) -> NaN
 nHrFlag = 0; nDayFlag = 0;
 if cfg.applyThreshold
+    if ~isequal(bands{1}, 18:25)
+        error('The amplitude threshold is defined on the 18-25 Hz band, which region %s does not use', region);
+    end
     x = masterDFhour(:, 6);
     badHr = ~(x < 103 & x > 50) & ~isnan(x);
     masterDFhour(badHr, 6:end) = NaN;
@@ -205,8 +250,11 @@ end
 
 %% Save
 info = struct('region', region, 'site', site, 'clean', cfg.clean, ...
-    'applyThreshold', cfg.applyThreshold, 'nHoursThresholded', nHrFlag, ...
+    'applyThreshold', cfg.applyThreshold, 'bandHz', {bands}, 'bandUnits', bandUnits, ...
+    'nHoursThresholded', nHrFlag, ...
     'nDaysThresholded', nDayFlag, 'nBadTimestampsDropped', nBadTime, 'fifoRemovedFrom', {fifoHit}, ...
+    'trimDeckTest', cfg.trimDeckTest, 'harpSummary', cfg.harpSummaryName, ...
+    'nDeckTestHoursDropped', nDeck, 'deckTest', deckTbl, ...
     'inputFiles', {{listing.name}}, 'created', datetime('now'));
 base = fullfile(outDir, [region '_' site]);
 save([base '_Hourly_cleaned_' cfg.outTag '.mat'], 'masterDFhour', 'hourCols', 'info')
@@ -218,7 +266,6 @@ writetable(array2table(masterDFday,  'VariableNames', dayCols),  [base '_Daily_c
 startDate = min([datnum; dailydatnum]);
 endDate   = max([datnum; dailydatnum]);
 plotBase  = fullfile(outDir, sprintf('%s_%s', region, site));
-bandTitles = {'Fin Whale (18 - 25 Hz)', 'Blue Whale (40 - 48 Hz)', 'Ship Noise (56 - 71 Hz)', 'Wind Noise (708 - 891 Hz)'};
 
 if cfg.Seasonal
     fig = figure;
@@ -234,10 +281,10 @@ if cfg.Seasonal
     saveFig(fig, [plotBase '_SeasonalSpectra']);
 end
 if cfg.Bands_hr
-    saveFig(plotBands(datnum, hrBand, bandTitles, startDate, endDate), [plotBase '_Bands_Hourly']);
+    saveFig(plotBands(datnum, hrBand, bandTitles, bandUnits, startDate, endDate), [plotBase '_Bands_Hourly']);
 end
 if cfg.Bands_day
-    saveFig(plotBands(dailydatnum, dayBand, bandTitles, startDate, endDate), [plotBase '_Bands_Daily']);
+    saveFig(plotBands(dailydatnum, dayBand, bandTitles, bandUnits, startDate, endDate), [plotBase '_Bands_Daily']);
 end
 if cfg.LSG
     fig = figure;
@@ -265,20 +312,210 @@ end
 if nBadTime > 0
     msg = sprintf('%s; dropped %d bad timestamp(s)', msg, nBadTime);
 end
+if cfg.trimDeckTest
+    msg = sprintf('%s; deck test: %d hour(s) dropped from %d of %d deployments', msg, nDeck, ...
+        sum(deckTbl.HoursDropped > 0), height(deckTbl));
+    noSum = deckTbl.Deployment(~startsWith(deckTbl.DeckTestMethod, 'HARP'));
+    if ~isempty(noSum)
+        msg = sprintf('%s (not in HARP summary: %s)', msg, strjoin(noSum, ', '));
+    end
+end
 if cfg.clean == 1
     if isempty(fifoHit), fifoStr = 'none'; else, fifoStr = strjoin(fifoHit, ', '); end
     msg = sprintf('%s; FIFO removed in: %s', msg, fifoStr);
 end
+if cfg.writeReadme
+    writeSiteReadme(outDir, cfg, site, info, bandNames, bandUnits, bands, ...
+        sprintf('%s to %s', datestr(startDate, 'yyyy-mm-dd'), datestr(endDate, 'yyyy-mm-dd')), ...
+        numel(datnum), numel(dailydatnum));
+end
 end
 
 %% ========================================================================
-function fig = plotBands(t, band, titles, startDate, endDate)
+function M = readDataStart(xlsFile)
+% Data_ID -> datenum of Data_Start_Date + Data_Start_Time from the HARP data summary.
+M = containers.Map('KeyType', 'char', 'ValueType', 'double');
+H = readtable(xlsFile, 'VariableNamingRule', 'preserve');
+for i = 1:height(H)
+    id = H.Data_ID(i); if iscell(id), id = id{1}; end
+    id = strtrim(char(string(id)));
+    d = H.Data_Start_Date(i); tm = H.Data_Start_Time(i);
+    if iscell(d), d = d{1}; end
+    if iscell(tm), tm = str2double(tm{1}); end
+    if isempty(id) || ismissing(string(d)), continue, end
+    if isduration(tm), tm = days(tm); elseif isdatetime(tm), tm = days(timeofday(tm)); end
+    if isnan(tm), tm = 0; end
+    M(id) = datenum(dateshift(datetime(d), 'start', 'day')) + tm;
+end
+end
+
+function files = readHourlyAvesLogs(logDir)
+% HourlyAves files written (Status DONE) by GOM_runHourlyAves.m, from its CSV logs.
+files = {};
+L = dir(fullfile(logDir, '*HourlyAves_log_*.csv'));
+for k = 1:numel(L)
+    T = readtable(fullfile(L(k).folder, L(k).name), 'Delimiter', ',', 'TextType', 'char');
+    if ~all(ismember({'Status', 'Output'}, T.Properties.VariableNames)), continue, end
+    out = T.Output(strcmp(T.Status, 'DONE'));
+    [~, n, e] = cellfun(@fileparts, out, 'UniformOutput', false);
+    files = [files; strcat(n, e)]; %#ok<AGROW>
+end
+files = unique(files);
+end
+
+function [keep, method] = deckTestMask(t, depID, dataStart)
+% Hours of the deck test (before the deployment's data start) -> false.
+key = '';
+base = regexprep(depID, '_C\d+$', '');                 % 4-channel files: GOM_MC_15_01_C4
+for c = {depID, base, regexprep(base, '_\d{2}$', '')}
+    if isKey(dataStart, c{1}), key = c{1}; break, end
+end
+if ~isempty(key)
+    keep = t >= dataStart(key) - 59/1440;              % ptime = first time in the hour
+    method = sprintf('HARP summary Data_Start (%s, %s)', key, datestr(dataStart(key), 'yyyy-mm-dd HH:MM'));
+    return
+end
+ts = sort(t(t > datenum(2004,1,1)));
+keep = true(size(t));
+g = find(diff(ts)*24 > 3 & ts(1:end-1) < ts(1) + 10, 1);
+if ~isempty(g) && g <= 3
+    keep = t > ts(g);
+    method = 'not in HARP summary: leading block before first gap > 3 h';
+else
+    method = 'not in HARP summary: no deck test found';
+end
+end
+
+function writeSiteReadme(outDir, cfg, site, info, bandNames, bandUnits, bands, span, nHr, nDay)
+% README.txt for a site folder: what every file is and which repo script made it.
+region = cfg.region; tag = cfg.outTag; pre = [region '_' site];
+repo = 'https://github.com/MarineBioAcousticsRC/LTSA2LSG_v2';
+fid = fopen(fullfile(outDir, 'README.txt'), 'w');
+c = onCleanup(@() fclose(fid));
+p = @(varargin) fprintf(fid, [varargin{1} '\r\n'], varargin{2:end});
+p('%s %s AMBIENT NOISE - what is in this folder', region, site);
+p('Written by spectra_dataCleaning_v3.m on %s. Rerunning it rewrites this file.', datestr(now, 'yyyy-mm-dd'));
+p('Code: %s  (old vs new scripts: README_old_vs_new.md)', repo);
+p('');
+p('PROCESSING CHAIN');
+p('  1. HARP LTSA (*_df100.ltsa)  ->  <deployment>_df100_HourlyAves.mat     (one per deployment)');
+p('  2. all HourlyAves            ->  %s_Hourly/Daily_cleaned_%s.mat/.csv + LSG/seasonal plots', pre, tag);
+p('                                   (spectra_dataCleaning_v3.m)');
+p('  3. HourlyAves + Daily %s     ->  %s_LSG_HourlyAves_*.png, %s_LSG_Daily%s_*.png/.fig', tag, pre, pre, upper(tag));
+p('                                   (GOM_plotLSGupdate.m; run after step 2)');
+p('');
+p('-------------------------------------------------------------------------------');
+p('1. <deployment>_df100_HourlyAves.mat  (inputs; never modified by later steps)');
+p('   Hourly mean spectra, 1 Hz bins 0-1000 Hz, transfer function (TF) applied, dB re 1 uPa^2/Hz.');
+p('   Variables: ptime (datenum = ptime + datenum([2000 0 0 0 0 0])), mpwrtf (freq x hour), freq,');
+p('   nmave, tf_file, dBaseName, Ptf. Not cleaned: FIFO noise and the deck test are still in them.');
+p('   Made by:');
+p('     GOM_runHourlyAves.m -> GOM_LTSAspectra.m   (2026 onwards; latest TF revision, logged in');
+p('                                                  ..\\GOM_HourlyAves_log_*.csv)');
+p('     LSG_batch_Kait.m -> LTSAdailySpectra_auto.m (older files)');
+p('');
+p('   %-24s %-34s %-24s %-6s %s', 'Deployment', 'Made by', 'TF', 'Deck h', 'First hour kept in cleaned files');
+D = info.deckTest;
+for i = 1:height(D)
+    p('   %-24s %-34s %-24s %6d %s', D.Deployment{i}, D.HourlyAvesMadeBy{i}, D.TF{i}, D.HoursDropped(i), D.FirstHourKept{i});
+end
+p('   ("Deck h" = deck-test hours dropped from the cleaned files; method per deployment in info.deckTest)');
+p('');
+p('-------------------------------------------------------------------------------');
+p('2. %s_Hourly_cleaned_%s.mat / .csv  and  %s_Daily_cleaned_%s.mat / .csv', pre, tag, pre, tag);
+p('   Made by spectra_dataCleaning_v3.m (region = ''%s'', outTag = ''%s'') on %s.', region, tag, datestr(info.created, 'yyyy-mm-dd'));
+p('   Covers %s: %d hours, %d days.', span, nHr, nDay);
+p('');
+p('   Cleaning applied:');
+if cfg.trimDeckTest
+    p('   - Deck test removed: hours before each deployment''s Data_Start in %s', cfg.harpSummaryName);
+    p('     are dropped (%d hours in total; per deployment in the table above).', info.nDeckTestHoursDropped);
+    p('     Deployments not in the summary: a <= 3 h block at the start followed by a > 3 h gap is dropped.');
+else
+    p('   - Deck test NOT removed (trimDeckTest = false).');
+end
+if info.clean == 1
+    if isempty(info.fifoRemovedFrom), s = 'none'; else, s = strjoin(info.fifoRemovedFrom, ', '); end
+    p('   - FIFO noise (50 Hz harmonics, +/-2 Hz) interpolated out where the 100 or 150 Hz bin is');
+    p('     > 1.4 dB above its neighbour. Removed from: %s', s);
+else
+    p('   - FIFO noise NOT removed (clean = 0).');
+end
+p('   - Hours stamped before %s dropped: %d.', datestr(cfg.minValidDate, 'yyyy-mm-dd'), info.nBadTimestampsDropped);
+if info.applyThreshold
+    p('   - Amplitude threshold applied: %d hours, %d days set to NaN.', info.nHoursThresholded, info.nDaysThresholded);
+else
+    p('   - No amplitude threshold (that SOCAL rule removed good data in the GOM; see Old files\\README.txt).');
+end
+p('');
+p('   Hourly table (masterDFhour; .csv has the same columns with a header row):');
+p('     %s', strjoin([{'datenum','year','month','day','hour'}, bandNames], ', '));
+p('   Daily table (masterDFday): datenum, year, month, day, %s,', strjoin(bandNames, ', '));
+p('     then the daily median spectrum, 0-1000 Hz in 1 Hz bins (columns 9-1009; column 9 = 0 Hz).');
+p('   Daily spectrum = median of that day''s hourly spectra, in dB re 1 uPa^2/Hz.');
+p('   Band columns (%s):', strrep(bandUnits, '\mu', 'u'));
+for b = 1:numel(bands)
+    p('     %-14s %d-%d Hz', bandNames{b}, bands{b}(1), bands{b}(end));
+end
+if strcmpi(region, 'GOM')
+    p('     Octave bands from MPL TM 678 (sec. 4.4.1): 31.5 Hz = airguns, 63 and 125 Hz = shipping');
+    p('     (125 Hz also Rice''s whale calls), 500 Hz = weather. Band level = sum over the 1 Hz bins.');
+    p('     Hourly values: from each hourly spectrum. Daily values: from the daily median spectrum.');
+end
+p('   The .mat files also hold hourCols / dayCols (column names), freq (Hz of the spectrum columns)');
+p('   and info (settings, input files, FIFO and deck-test details).');
+p('');
+p('-------------------------------------------------------------------------------');
+p('FIGURES');
+p('   %s_LSG.png/.fig              spectra_dataCleaning_v3.m  daily median spectra (cleaned %s)', pre, tag);
+p('   %s_SeasonalSpectra.png/.fig  spectra_dataCleaning_v3.m  median daily spectrum per season', pre);
+p('   %s_Bands_Hourly/Daily.*      spectra_dataCleaning_v3.m  band levels over time (if made)', pre);
+p('   %s_LSG_HourlyAves_<years>_<newest deployment>.png', pre);
+p('                                  GOM_plotLSGupdate.m  hourly spectra from HourlyAves (NOT cleaned)');
+p('   %s_LSG_Daily%s_<years>_<newest deployment>.png/.fig', pre, upper(tag));
+p('                                  GOM_plotLSGupdate.m  from the Daily_cleaned_%s file', tag);
+p('   Note: GOM_plotLSGupdate.m figures are only as new as its last run. Rerun it after');
+p('   spectra_dataCleaning_v3.m to pick up changes to the cleaned files.');
+if isfolder(fullfile(outDir, 'Old files'))
+    p('');
+    p('-------------------------------------------------------------------------------');
+    p('Old files\\  v2 outputs (spectra_dataCleaning_Saving_Plotting.m). Do not use; see the README there.');
+end
+end
+
+%% ========================================================================
+function fig = plotBands(t, band, titles, units, startDate, endDate)
 fig = figure;
-for b = 1:4
-    subplot(4, 1, b)
+for b = 1:numel(band)
+    subplot(numel(band), 1, b)
     plot(t, band{b}, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
     xlim([startDate endDate]); datetick('x', 'mm yyyy', 'keeplimits')
-    ylabel('dB re 1\muPa^2/Hz'); title(titles{b})
+    ylabel(units); title(titles{b})
+end
+end
+
+%% ========================================================================
+function [bands, names, titles, units, perHz] = getBands(region)
+% Bands of interest per region. Always 4 bands, so the table layout is the same.
+if strcmpi(region, 'GOM')
+    % Octave bands from MPL TM 678 (LISTEN GoMex 2020-2025, sec. 4.4.1, Fig. 125):
+    % 31.5 Hz = airguns, 63 and 125 Hz = shipping (125 Hz also Rice's whale calls),
+    % 500 Hz = weather. Edges fc/sqrt(2) to fc*sqrt(2), whole 1 Hz bins inside them,
+    % summed band level (same as GOM_octaveBandLevels.m). No fin/blue whales in the GOM.
+    fc = [31.5 63 125 500];
+    bands = arrayfun(@(f) ceil(f/sqrt(2)):floor(f*sqrt(2)), fc, 'UniformOutput', false);
+    names  = {'OB31_5Hz', 'OB63Hz', 'OB125Hz', 'OB500Hz'};
+    titles = {'Airguns (31.5 Hz octave)', 'Shipping (63 Hz octave)', ...
+              'Shipping / Rice''s whale (125 Hz octave)', 'Weather (500 Hz octave)'};
+    units = 'dB re 1\muPa^2';
+    perHz = false;
+else
+    % Original SOCAL bands (mean spectrum level in the band)
+    bands  = {18:25, 40:48, 56:71, 708:891};
+    names  = {'SPL_18_25Hz', 'SPL_40_48Hz', 'SPL_56_71Hz', 'SPL_708_891Hz'};
+    titles = {'Fin Whale (18 - 25 Hz)', 'Blue Whale (40 - 48 Hz)', 'Ship Noise (56 - 71 Hz)', 'Wind Noise (708 - 891 Hz)'};
+    units = 'dB re 1\muPa^2/Hz';
+    perHz = true;
 end
 end
 

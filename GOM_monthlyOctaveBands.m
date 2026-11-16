@@ -8,6 +8,7 @@ deps = {'GC','GOM_GC_18'; 'MC','GOM_MC_20'; 'MC','GOM_MC_19'; 'DT','GOM_DT_18_00
         'TP','GOM_TP_01'; 'PCC','GOM_PCC_01'; 'Y6B','GOM_Y6B_01'; 'Y6C','GOM_Y6C_01'; 'Y6D','GOM_Y6D_01'};
 fc = [31.5 63 125 500]; ed = [fc'/sqrt(2) fc'*sqrt(2)];
 poff = datenum([2000 0 0 0 0 0]);
+ds = readHarpDataStart('C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20261016.xlsx'); % deck test
 out = {};
 for i = 1:size(deps,1)
     h = load(fullfile(R, deps{i,1}, [deps{i,2} '_df100_HourlyAves.mat']), 'ptime', 'mpwrtf');
@@ -17,6 +18,8 @@ for i = 1:size(deps,1)
         P = fillmissing(P, 'spline', 1);
     end
     t = h.ptime(:) + poff;
+    ok = deckTestMask(t, deps{i,2}, ds);    % drop the deck test
+    t = t(ok); P = P(:, ok);
     B = zeros(numel(t), 4);
     for b = 1:4, r = (ceil(ed(b,1)):floor(ed(b,2))) + 1; B(:,b) = 10*log10(sum(10.^(P(r,:)/10),1))'; end
     m = floor((t - t(1)) / 30.44);                  % deployment month 0,1,2,...

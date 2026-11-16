@@ -41,7 +41,10 @@ poff = datenum([2000 0 0 0 0 0]);
 fIdx = unique(round(logspace(log10(fLim(1)), log10(fLim(2)), nF))) + 1;  % row = Hz + 1
 fHz  = fIdx - 1;
 
-bands = {18:25, 40:48, 56:71, 708:891};   % fin, blue, ship, wind (Hz)
+% Octave bands as in MPL TM 678 and spectra_dataCleaning_v3 (31.5 airguns, 63/125 shipping, 500 weather)
+fc = [31.5 63 125 500];
+bands = arrayfun(@(f) ceil(f/sqrt(2)):floor(f*sqrt(2)), fc, 'UniformOutput', false);
+ds = readHarpDataStart('C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20261016.xlsx'); % deck test
 bandRows = cell(0, 11);
 summary = cell(0, 3);
 for s = 1:numel(sites)
@@ -87,10 +90,11 @@ for s = 1:numel(sites)
         ok = t >= datenum(minValid);
         col = round((floor(t(ok) * 24) / 24 - tStart) * 24) + 1;
         Z(:, col) = single(h.mpwrtf(fIdx, ok));
-        % median band levels for this deployment (same bands as the cleaning script)
-        bl = cellfun(@(b) median(10*log10(mean(10.^(h.mpwrtf(b+1, ok)/10), 1)), 'omitnan'), bands);
+        % median octave band levels for this deployment (deck test excluded; FIFO not removed)
+        okB = ok & deckTestMask(t, dep(k).id, ds);
+        bl = cellfun(@(b) median(10*log10(sum(10.^(h.mpwrtf(b+1, okB)/10), 1)), 'omitnan'), bands);
         bandRows(end+1, :) = {site, dep(k).id, datestr(dep(k).t0, 'yyyy-mm-dd'), ...
-            datestr(dep(k).t1, 'yyyy-mm-dd'), sum(ok), h.tf_file, isNew(k), bl(1), bl(2), bl(3), bl(4)}; %#ok<SAGROW>
+            datestr(dep(k).t1, 'yyyy-mm-dd'), sum(okB), h.tf_file, isNew(k), bl(1), bl(2), bl(3), bl(4)}; %#ok<SAGROW>
     end
     tH = tStart + (0:nT-1) / 24;
 
@@ -124,7 +128,7 @@ for s = 1:numel(sites)
         lsgFigure(tH, fHz, Z, cLim, fLim, {t1, depStr}, highlight, newDep, newStr, ...
             fullfile(figDir, sprintf('GOM_%s_LSG_HourlyAves_%s%s', site, fileTag, sfx)));
         if haveV3
-            t2 = sprintf('GOM %s  |  Daily median spectra (cleaned %s: FIFO removed where detected)  |  %s', site, v3tag, span);
+            t2 = sprintf('GOM %s  |  Daily median spectra (cleaned %s: FIFO and deck test removed)  |  %s', site, v3tag, span);
             lsgFigure(tD, fHz, D, cLim, fLim, {t2, depStr}, highlight, newDep, newStr, ...
                 fullfile(figDir, sprintf('GOM_%s_LSG_Daily%s_%s%s', site, upper(v3tag), fileTag, sfx)));
         end
@@ -136,9 +140,9 @@ for s = 1:numel(sites)
 end
 disp(cell2table(summary, 'VariableNames', {'Site', 'nFigures', 'Detail'}))
 
-% Per-deployment median band levels (dB re 1 uPa^2/Hz, from HourlyAves)
+% Per-deployment median octave band levels (dB re 1 uPa^2, from HourlyAves, deck test excluded)
 B = cell2table(bandRows, 'VariableNames', {'Site','Deployment','Start','End','nHours','TF','IsNew', ...
-    'Median_18_25Hz','Median_40_48Hz','Median_56_71Hz','Median_708_891Hz'});
+    'Median_OB31_5Hz','Median_OB63Hz','Median_OB125Hz','Median_OB500Hz'});
 writetable(B, fullfile(outDir, 'GOM_deployment_median_band_levels.csv'));
 fprintf('Band levels saved to %s\n', fullfile(outDir, 'GOM_deployment_median_band_levels.csv'));
 

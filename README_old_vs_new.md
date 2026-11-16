@@ -81,17 +81,22 @@ checked.** The `*_HourlyAves.mat` files themselves were never thresholded.
 | Bad timestamps | Kept (e.g. one `GofMX_DC05` hour stamped 2000-01-11 stretched the DC plots back to 2000) | Hours stamped before `minValidDate` (2004-01-01) are dropped and reported |
 | Frequency axis | Assumed 1 Hz bins (`freq = 0:1:1000`) | Checks the HourlyAves `freq` and stops with an error if it isn't 1 Hz bins from 0 Hz |
 | Output names | `<region>_<site>_Daily_cleaned_v2.mat`, `..._cleaned.csv` | `<region>_<site>_Daily_cleaned_<outTag>.mat/.csv` (`outTag = 'v3'`), so v2 files are not overwritten. `outRoot` can redirect output elsewhere |
+| Deck test | Kept (the 1–3 h recorded on deck before deployment, 10–30 dB louder at 500 Hz, was in every table) | Hours before each deployment's `Data_Start_Date` + `Data_Start_Time` in the HARP data summary are dropped (`trimDeckTest = true`). Deployments not in the summary: a ≤ 3 h block at the start followed by a > 3 h gap is dropped. Per deployment in `info.deckTest` |
+| Bands (GOM) | SoCal bands: fin whale 18–25, blue whale 40–48, ship 56–71, wind 708–891 Hz | Octave bands from MPL TM 678 (sec. 4.4.1): **31.5 Hz** (airguns), **63 / 125 Hz** (shipping; 125 Hz also Rice's whale), **500 Hz** (weather). Edges fc/√2–fc·√2, summed band level in dB re 1 µPa² (same as `GOM_octaveBandLevels.m` and report Fig. 125). Other regions keep the SoCal bands |
 | Self-describing outputs | none | Adds `freq`, `hourCols`/`dayCols` (column names) and `info` (settings, input files, counts) to the .mat; CSVs have header rows |
+| Site README | none | `README.txt` in each site folder: every file, which repo script made it, HourlyAves pipeline and TF per deployment, deck-test hours dropped, FIFO removal, band definitions |
 | Errors in batch mode | One failure is printed, then it continues | Same, plus a summary table at the end |
 
 For SOCAL, v3 gives the same values as the old script. The only difference is that thresholded
 hours/days are NaN rows instead of missing rows.
 
-### Output columns (same layout in v2 and v3)
-- `masterDFhour`: `datenum, year, month, day, hour, SPL 18–25 Hz, SPL 40–48 Hz, SPL 56–71 Hz, SPL 708–891 Hz`
+### Output columns (same layout in v2 and v3; the band definitions differ for GOM)
+- `masterDFhour`: `datenum, year, month, day, hour, band1, band2, band3, band4`
 - `masterDFday`: `datenum, year, month, day`, the same four bands, then the daily median spectrum
   for **0–1000 Hz in 1 Hz bins** (columns 9–1009; column 9 = 0 Hz)
-- Levels are dB re 1 µPa²/Hz. Band levels are the mean spectrum level across the band.
+- GOM v3 bands: `OB31_5Hz, OB63Hz, OB125Hz, OB500Hz`, octave band levels in dB re 1 µPa².
+  v2 and non-GOM bands: `SPL_18_25Hz, SPL_40_48Hz, SPL_56_71Hz, SPL_708_891Hz`, mean spectrum
+  level in the band, dB re 1 µPa²/Hz. Spectrum columns are dB re 1 µPa²/Hz.
 
 ---
 
