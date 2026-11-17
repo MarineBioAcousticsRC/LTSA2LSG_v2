@@ -43,9 +43,9 @@ fHz  = fIdx - 1;
 
 % Octave bands as in MPL TM 678 and spectra_dataCleaning_v3 (31.5 airguns, 63/125 shipping, 500 weather)
 fc = [31.5 63 125 500];
-bands = arrayfun(@(f) ceil(f/sqrt(2)):floor(f*sqrt(2)), fc, 'UniformOutput', false);
+bands = [arrayfun(@(f) ceil(f/sqrt(2)):floor(f*sqrt(2)), fc, 'UniformOutput', false), {40}]; % + 40 Hz bin
 ds = readHarpDataStart('C:\Users\nposd\Documents\GitHub\LTSA2LSG_v2\HARPDataSummary_20261016.xlsx'); % deck test
-bandRows = cell(0, 11);
+bandRows = cell(0, 7 + numel(bands));
 summary = cell(0, 3);
 for s = 1:numel(sites)
     site = sites{s};
@@ -94,7 +94,7 @@ for s = 1:numel(sites)
         okB = ok & deckTestMask(t, dep(k).id, ds);
         bl = cellfun(@(b) median(10*log10(sum(10.^(h.mpwrtf(b+1, okB)/10), 1)), 'omitnan'), bands);
         bandRows(end+1, :) = {site, dep(k).id, datestr(dep(k).t0, 'yyyy-mm-dd'), ...
-            datestr(dep(k).t1, 'yyyy-mm-dd'), sum(okB), h.tf_file, isNew(k), bl(1), bl(2), bl(3), bl(4)}; %#ok<SAGROW>
+            datestr(dep(k).t1, 'yyyy-mm-dd'), sum(okB), h.tf_file, isNew(k), bl(1), bl(2), bl(3), bl(4), bl(5)}; %#ok<SAGROW>
     end
     tH = tStart + (0:nT-1) / 24;
 
@@ -102,9 +102,10 @@ for s = 1:numel(sites)
     v3file = fullfile(root, site, sprintf('GOM_%s_Daily_cleaned_%s.mat', site, v3tag));
     haveV3 = isfile(v3file);
     if haveV3
-        v = load(v3file, 'masterDFday');
+        v = load(v3file, 'masterDFday', 'dayCols');
         tD = v.masterDFday(:, 1)';
-        D = v.masterDFday(:, 9:end)';      % 0..1000 Hz
+        c0 = find(strcmp(v.dayCols, '0Hz'));   % spectrum columns start after the band columns
+        D = v.masterDFday(:, c0:c0+1000)';     % 0..1000 Hz
         D = D(fIdx, :);
     end
 
@@ -140,9 +141,10 @@ for s = 1:numel(sites)
 end
 disp(cell2table(summary, 'VariableNames', {'Site', 'nFigures', 'Detail'}))
 
-% Per-deployment median octave band levels (dB re 1 uPa^2, from HourlyAves, deck test excluded)
+% Per-deployment median octave band levels (dB re 1 uPa^2) and 40 Hz bin (dB re 1 uPa^2/Hz),
+% from HourlyAves, deck test excluded
 B = cell2table(bandRows, 'VariableNames', {'Site','Deployment','Start','End','nHours','TF','IsNew', ...
-    'Median_OB31_5Hz','Median_OB63Hz','Median_OB125Hz','Median_OB500Hz'});
+    'Median_OB31_5Hz','Median_OB63Hz','Median_OB125Hz','Median_OB500Hz','Median_SPL40Hz'});
 writetable(B, fullfile(outDir, 'GOM_deployment_median_band_levels.csv'));
 fprintf('Band levels saved to %s\n', fullfile(outDir, 'GOM_deployment_median_band_levels.csv'));
 

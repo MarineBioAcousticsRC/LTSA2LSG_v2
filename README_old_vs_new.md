@@ -41,6 +41,10 @@ hour. The old code used the start of the second file.
    missing from the HARP summary; add its preamp to `preampOverride` or to the summary).
 4. Run with `dryRun = false`. Each deployment takes roughly 10–15 min over the network.
 
+To (re)build a site that isn't in this year's cruise table, set `manualSites = {'TUX'}` and an early
+`minDataStart` (e.g. `datetime(2004,1,1)`). Only deployments with `*_df100` LTSAs can be processed
+(e.g. GOM_TUX_01 was recorded at 20 kHz and has no df100 LTSA).
+
 ---
 
 ## Step 2: cleaning, tables and plots
@@ -82,7 +86,7 @@ checked.** The `*_HourlyAves.mat` files themselves were never thresholded.
 | Frequency axis | Assumed 1 Hz bins (`freq = 0:1:1000`) | Checks the HourlyAves `freq` and stops with an error if it isn't 1 Hz bins from 0 Hz |
 | Output names | `<region>_<site>_Daily_cleaned_v2.mat`, `..._cleaned.csv` | `<region>_<site>_Daily_cleaned_<outTag>.mat/.csv` (`outTag = 'v3'`), so v2 files are not overwritten. `outRoot` can redirect output elsewhere |
 | Deck test | Kept (the 1–3 h recorded on deck before deployment, 10–30 dB louder at 500 Hz, was in every table) | Hours before each deployment's `Data_Start_Date` + `Data_Start_Time` in the HARP data summary are dropped (`trimDeckTest = true`). Deployments not in the summary: a ≤ 3 h block at the start followed by a > 3 h gap is dropped. Per deployment in `info.deckTest` |
-| Bands (GOM) | SoCal bands: fin whale 18–25, blue whale 40–48, ship 56–71, wind 708–891 Hz | Octave bands from MPL TM 678 (sec. 4.4.1): **31.5 Hz** (airguns), **63 / 125 Hz** (shipping; 125 Hz also Rice's whale), **500 Hz** (weather). Edges fc/√2–fc·√2, summed band level in dB re 1 µPa² (same as `GOM_octaveBandLevels.m` and report Fig. 125). Other regions keep the SoCal bands |
+| Bands (GOM) | SoCal bands: fin whale 18–25, blue whale 40–48, ship 56–71, wind 708–891 Hz | Octave bands from MPL TM 678 (sec. 4.4.1): **31.5 Hz** (airguns), **63 / 125 Hz** (shipping; 125 Hz also Rice's whale), **500 Hz** (weather). Edges fc/√2–fc·√2, summed band level in dB re 1 µPa² (same as `GOM_octaveBandLevels.m` and report Fig. 125), plus `SPL40Hz`, the single 1 Hz bin at 40 Hz (dB re 1 µPa²/Hz). Other regions keep the SoCal bands |
 | Self-describing outputs | none | Adds `freq`, `hourCols`/`dayCols` (column names) and `info` (settings, input files, counts) to the .mat; CSVs have header rows |
 | Site README | none | `README.txt` in each site folder: every file, which repo script made it, HourlyAves pipeline and TF per deployment, deck-test hours dropped, FIFO removal, band definitions |
 | Errors in batch mode | One failure is printed, then it continues | Same, plus a summary table at the end |
@@ -90,13 +94,15 @@ checked.** The `*_HourlyAves.mat` files themselves were never thresholded.
 For SOCAL, v3 gives the same values as the old script. The only difference is that thresholded
 hours/days are NaN rows instead of missing rows.
 
-### Output columns (same layout in v2 and v3; the band definitions differ for GOM)
-- `masterDFhour`: `datenum, year, month, day, hour, band1, band2, band3, band4`
-- `masterDFday`: `datenum, year, month, day`, the same four bands, then the daily median spectrum
-  for **0–1000 Hz in 1 Hz bins** (columns 9–1009; column 9 = 0 Hz)
-- GOM v3 bands: `OB31_5Hz, OB63Hz, OB125Hz, OB500Hz`, octave band levels in dB re 1 µPa².
-  v2 and non-GOM bands: `SPL_18_25Hz, SPL_40_48Hz, SPL_56_71Hz, SPL_708_891Hz`, mean spectrum
-  level in the band, dB re 1 µPa²/Hz. Spectrum columns are dB re 1 µPa²/Hz.
+### Output columns
+- `masterDFhour`: `datenum, year, month, day, hour`, then the band columns
+- `masterDFday`: `datenum, year, month, day`, the same band columns, then the daily median
+  spectrum for **0–1000 Hz in 1 Hz bins**
+- GOM v3 bands (5): `OB31_5Hz, OB63Hz, OB125Hz, OB500Hz` (octave band levels, dB re 1 µPa²) and
+  `SPL40Hz` (40 Hz bin, dB re 1 µPa²/Hz). The daily spectrum is in columns 10–1010 (column 10 = 0 Hz).
+- v2 and non-GOM bands (4): `SPL_18_25Hz, SPL_40_48Hz, SPL_56_71Hz, SPL_708_891Hz`, mean spectrum
+  level in the band, dB re 1 µPa²/Hz. The daily spectrum is in columns 9–1009.
+- Find the spectrum by name (`dayCols` = `'0Hz'`) rather than by column number.
 
 ---
 

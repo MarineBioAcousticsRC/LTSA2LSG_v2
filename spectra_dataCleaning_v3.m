@@ -23,11 +23,13 @@
 %                 deleted). Off for GOM -- it removed good data there.
 %
 % Outputs
-%   masterDFhour : [datenum Y M D H  band1 band2 band3 band4]
-%   masterDFday  : [datenum Y M D  band1 band2 band3 band4  spectrum 0:1000 Hz]
+%   masterDFhour : [datenum Y M D H  bands]
+%   masterDFday  : [datenum Y M D  bands  spectrum 0:1000 Hz]
 %   Also saved: freq (Hz, for the spectrum columns), hourCols, dayCols, info.
+%   Use dayCols / freq to find the spectrum columns (they start after the bands).
 %   Bands depend on region (see getBands):
-%     GOM   : octave bands 31.5, 63, 125, 500 Hz (MPL TM 678), band level in dB re 1 uPa^2
+%     GOM   : octave bands 31.5, 63, 125, 500 Hz (MPL TM 678), band level in dB re 1 uPa^2,
+%             then SPL40Hz = the 1 Hz bin at 40 Hz (dB re 1 uPa^2/Hz)
 %     other : 18-25, 40-48, 56-71, 708-891 Hz (SOCAL), mean spectrum level in dB re 1 uPa^2/Hz
 %
 % Tested in MATLAB R2023a.
@@ -75,7 +77,7 @@ cfg.trimDeckTest = trimDeckTest;
 cfg.writeReadme  = writeReadme;
 cfg.dataStart    = containers.Map('KeyType', 'char', 'ValueType', 'double');
 if trimDeckTest
-    cfg.dataStart = readDataStart(harpSummary);
+    cfg.dataStart = readHarpDataStart(harpSummary);
     [~, hsName, hsExt] = fileparts(harpSummary);
     cfg.harpSummaryName = [hsName hsExt];
 else
@@ -210,13 +212,15 @@ end
 
 %% Band levels (freq index = Hz + 1)
 [bands, bandNames, bandTitles, bandUnits, perHz] = getBands(region);
-if perHz   % mean spectrum level in the band (dB re 1 uPa^2/Hz)
-    bandLvl = @(X, b) 10*log10(sum(10.^(X(b+1, :)/10))) - 10*log10(numel(b));
-else       % band level, summed over the band (dB re 1 uPa^2)
-    bandLvl = @(X, b) 10*log10(sum(10.^(X(b+1, :)/10)));
+% perHz(b) true : mean spectrum level in the band (dB re 1 uPa^2/Hz)
+%          false: band level, summed over the band (dB re 1 uPa^2)
+bandLvl = @(X, b, ph) 10*log10(sum(10.^(X(b+1, :)/10), 1)) - ph*10*log10(numel(b));
+nB = numel(bands);
+hrBand = cell(1, nB); dayBand = cell(1, nB);
+for b = 1:nB
+    hrBand{b}  = bandLvl(SPL,       bands{b}, perHz(b));
+    dayBand{b} = bandLvl(dailySPL2, bands{b}, perHz(b));
 end
-hrBand  = cellfun(@(b) bandLvl(SPL, b),       bands, 'UniformOutput', false);
-dayBand = cellfun(@(b) bandLvl(dailySPL2, b), bands, 'UniformOutput', false);
 
 %% Seasons
 [YY, MM, DD, HH] = datevec(datnum);
@@ -225,10 +229,11 @@ season = {MMd <= 3, MMd >= 4 & MMd <= 6, MMd >= 7 & MMd <= 9, MMd >= 10};
 seasonSPL = cellfun(@(i) median(dailySPL2(:, i), 2, 'omitnan'), season, 'UniformOutput', false);
 
 %% Tables
-masterDFhour = [datnum YY MM DD HH hrBand{1}' hrBand{2}' hrBand{3}' hrBand{4}'];
-masterDFday  = [dailydatnum YYd MMd DDd dayBand{1}' dayBand{2}' dayBand{3}' dayBand{4}' dailySPL2'];
+colv = @(c) cell2mat(cellfun(@(x) x(:), c, 'UniformOutput', false));
+masterDFhour = [datnum YY MM DD HH colv(hrBand)];
+masterDFday  = [dailydatnum YYd MMd DDd colv(dayBand) dailySPL2'];
 hourCols = [{'datenum','year','month','day','hour'}, bandNames];
-dayCols  = [hourCols([1:4 6:9]), arrayfun(@(x) sprintf('%dHz', x), freq', 'UniformOutput', false)];
+dayCols  = [{'datenum','year','month','day'}, bandNames, arrayfun(@(x) sprintf('%dHz', x), freq', 'UniformOutput', false)];
 
 %% Amplitude threshold (18-25 Hz band) -> NaN
 nHrFlag = 0; nDayFlag = 0;
@@ -239,18 +244,18 @@ if cfg.applyThreshold
     x = masterDFhour(:, 6);
     badHr = ~(x < 103 & x > 50) & ~isnan(x);
     masterDFhour(badHr, 6:end) = NaN;
-    for b = 1:4, hrBand{b}(badHr) = NaN; end
+    for b = 1:nB, hrBand{b}(badHr) = NaN; end
     x = masterDFday(:, 5);
     badDay = ~(x < 82) & ~isnan(x);
     masterDFday(badDay, 5:end) = NaN;
     dailySPL2(:, badDay) = NaN;
-    for b = 1:4, dayBand{b}(badDay) = NaN; end
+    for b = 1:nB, dayBand{b}(badDay) = NaN; end
     nHrFlag = sum(badHr); nDayFlag = sum(badDay);
 end
 
 %% Save
 info = struct('region', region, 'site', site, 'clean', cfg.clean, ...
-    'applyThreshold', cfg.applyThreshold, 'bandHz', {bands}, 'bandUnits', bandUnits, ...
+    'applyThreshold', cfg.applyThreshold, 'bandNames', {bandNames}, 'bandHz', {bands}, 'bandUnits', {bandUnits}, ...
     'nHoursThresholded', nHrFlag, ...
     'nDaysThresholded', nDayFlag, 'nBadTimestampsDropped', nBadTime, 'fifoRemovedFrom', {fifoHit}, ...
     'trimDeckTest', cfg.trimDeckTest, 'harpSummary', cfg.harpSummaryName, ...
@@ -332,23 +337,7 @@ end
 end
 
 %% ========================================================================
-function M = readDataStart(xlsFile)
-% Data_ID -> datenum of Data_Start_Date + Data_Start_Time from the HARP data summary.
-M = containers.Map('KeyType', 'char', 'ValueType', 'double');
-H = readtable(xlsFile, 'VariableNamingRule', 'preserve');
-for i = 1:height(H)
-    id = H.Data_ID(i); if iscell(id), id = id{1}; end
-    id = strtrim(char(string(id)));
-    d = H.Data_Start_Date(i); tm = H.Data_Start_Time(i);
-    if iscell(d), d = d{1}; end
-    if iscell(tm), tm = str2double(tm{1}); end
-    if isempty(id) || ismissing(string(d)), continue, end
-    if isduration(tm), tm = days(tm); elseif isdatetime(tm), tm = days(timeofday(tm)); end
-    if isnan(tm), tm = 0; end
-    M(id) = datenum(dateshift(datetime(d), 'start', 'day')) + tm;
-end
-end
-
+% Deck test helpers are separate files: readHarpDataStart.m, deckTestMask.m
 function files = readHourlyAvesLogs(logDir)
 % HourlyAves files written (Status DONE) by GOM_runHourlyAves.m, from its CSV logs.
 files = {};
@@ -361,29 +350,6 @@ for k = 1:numel(L)
     files = [files; strcat(n, e)]; %#ok<AGROW>
 end
 files = unique(files);
-end
-
-function [keep, method] = deckTestMask(t, depID, dataStart)
-% Hours of the deck test (before the deployment's data start) -> false.
-key = '';
-base = regexprep(depID, '_C\d+$', '');                 % 4-channel files: GOM_MC_15_01_C4
-for c = {depID, base, regexprep(base, '_\d{2}$', '')}
-    if isKey(dataStart, c{1}), key = c{1}; break, end
-end
-if ~isempty(key)
-    keep = t >= dataStart(key) - 59/1440;              % ptime = first time in the hour
-    method = sprintf('HARP summary Data_Start (%s, %s)', key, datestr(dataStart(key), 'yyyy-mm-dd HH:MM'));
-    return
-end
-ts = sort(t(t > datenum(2004,1,1)));
-keep = true(size(t));
-g = find(diff(ts)*24 > 3 & ts(1:end-1) < ts(1) + 10, 1);
-if ~isempty(g) && g <= 3
-    keep = t > ts(g);
-    method = 'not in HARP summary: leading block before first gap > 3 h';
-else
-    method = 'not in HARP summary: no deck test found';
-end
 end
 
 function writeSiteReadme(outDir, cfg, site, info, bandNames, bandUnits, bands, span, nHr, nDay)
@@ -451,15 +417,18 @@ p('');
 p('   Hourly table (masterDFhour; .csv has the same columns with a header row):');
 p('     %s', strjoin([{'datenum','year','month','day','hour'}, bandNames], ', '));
 p('   Daily table (masterDFday): datenum, year, month, day, %s,', strjoin(bandNames, ', '));
-p('     then the daily median spectrum, 0-1000 Hz in 1 Hz bins (columns 9-1009; column 9 = 0 Hz).');
+c0 = 5 + numel(bands);
+p('     then the daily median spectrum, 0-1000 Hz in 1 Hz bins (columns %d-%d; column %d = 0 Hz).', c0, c0 + 1000, c0);
 p('   Daily spectrum = median of that day''s hourly spectra, in dB re 1 uPa^2/Hz.');
-p('   Band columns (%s):', strrep(bandUnits, '\mu', 'u'));
+p('   Band columns:');
 for b = 1:numel(bands)
-    p('     %-14s %d-%d Hz', bandNames{b}, bands{b}(1), bands{b}(end));
+    if numel(bands{b}) == 1, hz = sprintf('%d Hz', bands{b}); else, hz = sprintf('%d-%d Hz', bands{b}(1), bands{b}(end)); end
+    p('     %-14s %-12s %s', bandNames{b}, hz, strrep(bandUnits{b}, '\mu', 'u'));
 end
 if strcmpi(region, 'GOM')
-    p('     Octave bands from MPL TM 678 (sec. 4.4.1): 31.5 Hz = airguns, 63 and 125 Hz = shipping');
-    p('     (125 Hz also Rice''s whale calls), 500 Hz = weather. Band level = sum over the 1 Hz bins.');
+    p('     OB* = octave bands from MPL TM 678 (sec. 4.4.1): 31.5 Hz = airguns, 63 and 125 Hz =');
+    p('     shipping (125 Hz also Rice''s whale calls), 500 Hz = weather. Band level = sum over the');
+    p('     1 Hz bins. SPL40Hz = spectrum level of the single 1 Hz bin at 40 Hz.');
     p('     Hourly values: from each hourly spectrum. Daily values: from the daily median spectrum.');
 end
 p('   The .mat files also hold hourCols / dayCols (column names), freq (Hz of the spectrum columns)');
@@ -476,10 +445,21 @@ p('   %s_LSG_Daily%s_<years>_<newest deployment>.png/.fig', pre, upper(tag));
 p('                                  GOM_plotLSGupdate.m  from the Daily_cleaned_%s file', tag);
 p('   Note: GOM_plotLSGupdate.m figures are only as new as its last run. Rerun it after');
 p('   spectra_dataCleaning_v3.m to pick up changes to the cleaned files.');
-if isfolder(fullfile(outDir, 'Old files'))
+sub = dir(outDir);
+sub = sub([sub.isdir] & ~ismember({sub.name}, {'.', '..'}));
+if ~isempty(sub)
     p('');
     p('-------------------------------------------------------------------------------');
-    p('Old files\\  v2 outputs (spectra_dataCleaning_Saving_Plotting.m). Do not use; see the README there.');
+    p('SUBFOLDERS');
+    for k = 1:numel(sub)
+        if strcmp(sub(k).name, 'Old files')
+            p('   Old files\\  v2 outputs (spectra_dataCleaning_Saving_Plotting.m). Do not use; see the README there.');
+        else
+            p('   %s\\  not used by spectra_dataCleaning_v3.m, which only reads the *%s files in this', sub(k).name, cfg.ftype(2:end));
+            p('   %s   folder (1 Hz bins, 0-1000 Hz). Deployments that exist only in here are not in the', repmat(' ', 1, numel(sub(k).name)));
+            p('   %s   cleaned files above.', repmat(' ', 1, numel(sub(k).name)));
+        end
+    end
 end
 end
 
@@ -490,32 +470,35 @@ for b = 1:numel(band)
     subplot(numel(band), 1, b)
     plot(t, band{b}, 'Color', [0 0.4470 0.7410], 'Marker', 'o', 'LineStyle', 'none')
     xlim([startDate endDate]); datetick('x', 'mm yyyy', 'keeplimits')
-    ylabel(units); title(titles{b})
+    ylabel(units{b}); title(titles{b})
 end
 end
 
 %% ========================================================================
 function [bands, names, titles, units, perHz] = getBands(region)
-% Bands of interest per region. Always 4 bands, so the table layout is the same.
+% Bands of interest per region. units: one string per band; perHz(b) true = mean
+% spectrum level in the band (dB re 1 uPa^2/Hz), false = summed band level (dB re 1 uPa^2).
 if strcmpi(region, 'GOM')
     % Octave bands from MPL TM 678 (LISTEN GoMex 2020-2025, sec. 4.4.1, Fig. 125):
     % 31.5 Hz = airguns, 63 and 125 Hz = shipping (125 Hz also Rice's whale calls),
     % 500 Hz = weather. Edges fc/sqrt(2) to fc*sqrt(2), whole 1 Hz bins inside them,
     % summed band level (same as GOM_octaveBandLevels.m). No fin/blue whales in the GOM.
+    % Plus the single 1 Hz bin at 40 Hz (spectrum level), added last so the octave
+    % band columns keep their positions.
     fc = [31.5 63 125 500];
-    bands = arrayfun(@(f) ceil(f/sqrt(2)):floor(f*sqrt(2)), fc, 'UniformOutput', false);
-    names  = {'OB31_5Hz', 'OB63Hz', 'OB125Hz', 'OB500Hz'};
+    bands = [arrayfun(@(f) ceil(f/sqrt(2)):floor(f*sqrt(2)), fc, 'UniformOutput', false), {40}];
+    names  = {'OB31_5Hz', 'OB63Hz', 'OB125Hz', 'OB500Hz', 'SPL40Hz'};
     titles = {'Airguns (31.5 Hz octave)', 'Shipping (63 Hz octave)', ...
-              'Shipping / Rice''s whale (125 Hz octave)', 'Weather (500 Hz octave)'};
-    units = 'dB re 1\muPa^2';
-    perHz = false;
+              'Shipping / Rice''s whale (125 Hz octave)', 'Weather (500 Hz octave)', '40 Hz (1 Hz bin)'};
+    units = [repmat({'dB re 1\muPa^2'}, 1, 4), {'dB re 1\muPa^2/Hz'}];
+    perHz = [false false false false true];
 else
     % Original SOCAL bands (mean spectrum level in the band)
     bands  = {18:25, 40:48, 56:71, 708:891};
     names  = {'SPL_18_25Hz', 'SPL_40_48Hz', 'SPL_56_71Hz', 'SPL_708_891Hz'};
     titles = {'Fin Whale (18 - 25 Hz)', 'Blue Whale (40 - 48 Hz)', 'Ship Noise (56 - 71 Hz)', 'Wind Noise (708 - 891 Hz)'};
-    units = 'dB re 1\muPa^2/Hz';
-    perHz = true;
+    units = repmat({'dB re 1\muPa^2/Hz'}, 1, 4);
+    perHz = true(1, 4);
 end
 end
 

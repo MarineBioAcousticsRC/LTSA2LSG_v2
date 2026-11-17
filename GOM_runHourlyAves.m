@@ -46,13 +46,24 @@ timeResList    = 2;                   % 2 = hourly; use [2 1] to also make daily
 % (Better: add the missing deployment to the HARP summary spreadsheet.)
 preampOverride = containers.Map('KeyType','char','ValueType','double');
 
+% Run these site codes instead of the ones recovered in siteTableDocx, e.g. {'TUX'}
+% to (re)build a site from the start of the pipeline. minDataStart still applies,
+% so set it early enough (e.g. datetime(2004,1,1) for every deployment on the drives).
+manualSites    = {};
+
 overwrite      = false;   % true = recompute even if the output file exists
 dryRun         = false;   % true = only report what would be processed
 
 %% ------------------- Load inputs ----------------------------------------
-sites = GOM_readSiteTable(siteTableDocx);
-sites = sites(sites.Recover, :);
-fprintf('%d sites to recover in %s\n', height(sites), siteTableDocx);
+if isempty(manualSites)
+    sites = GOM_readSiteTable(siteTableDocx);
+    sites = sites(sites.Recover, :);
+    fprintf('%d sites to recover in %s\n', height(sites), siteTableDocx);
+else
+    sites = table(manualSites(:), false(numel(manualSites), 1), true(numel(manualSites), 1), ...
+        'VariableNames', {'SiteCode', 'Lost', 'Recover'});
+    fprintf('%d site(s) from manualSites: %s\n', height(sites), strjoin(manualSites, ', '));
+end
 
 S = readtable(harpSummary, 'TextType', 'string');
 S.key = lower(strrep(S.Data_ID, '-', ''));

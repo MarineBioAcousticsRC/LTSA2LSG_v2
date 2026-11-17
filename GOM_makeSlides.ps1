@@ -199,9 +199,9 @@ Add-SlideTitle $s 'What the v3 daily spectrograms show' 'Each site slide: top = 
 $cw = ($W - 2*$M - 24) / 2
 $cards = @(
     @{ X = $M;            Head = 'v3 daily spectra';
-       Body = "Daily median of the hourly, transfer-function-corrected spectra (10${nd}1000 Hz, 1 Hz bins)`rFIFO noise (50 Hz harmonics) removed where detected (45 deployments)`rDeck test (hours before each deployment's data start) removed`rNo amplitude threshold: every recorded day is kept`rBands: 31.5, 63, 125, 500 Hz octave bands (MPL TM 678)" },
+       Body = "Daily median of the hourly, TF-corrected spectra (10${nd}1000 Hz, 1 Hz bins)`rFIFO noise removed where detected (45 deployments); deck test removed`rNo amplitude threshold: every recorded day is kept`rBands: 31.5, 63, 125, 500 Hz octaves (MPL TM 678) + 40 Hz" },
     @{ X = $M + $cw + 24; Head = 'Updated in the shared folder';
-       Body = "HourlyAves for all 13 new 2025${nd}2026 deployments`rv3 cleaned daily/hourly files (.mat, .csv) and LSGs for all 42 GOM sites`rREADME.txt in each site folder: every file and the script that made it`rOld v2 files moved to each site's Old files folder, with a README" }
+       Body = "HourlyAves for all 13 new 2025${nd}2026 deployments`rv3 cleaned daily/hourly files (.mat, .csv) and LSGs for all 43 GOM sites`rREADME.txt in each site folder: every file and the script that made it`rOld v2 files moved to each site's Old files folder, with a README" }
 )
 foreach ($k in $cards) {
     [void](Add-Card $s $k.X 84 $cw 210 $MIST)
